@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, send_file, url_for
+from werkzeug.utils import secure_filename
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -174,6 +175,27 @@ def paginate(items, page, page_size):
     return items[start:end], total, page, pages
 
 
+def normalized_upload_name(name):
+    p = Path(name)
+    stem = secure_filename(p.stem) or "resource"
+    stem = re.sub(r"@\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}$", "", stem)
+    return stem
+
+
+def unique_path(target_dir, file_name):
+    candidate = target_dir / file_name
+    if not candidate.exists():
+        return candidate
+    stem = candidate.stem
+    ext = candidate.suffix
+    i = 1
+    while True:
+        alt = target_dir / f"{stem}_{i}{ext}"
+        if not alt.exists():
+            return alt
+        i += 1
+
+
 @app.route("/")
 def index():
     q = request.args.get("q", "")
@@ -231,6 +253,45 @@ def month_view(year, month):
 @app.route("/day/<year>/<month>/<day>")
 def day_view(year, month, day):
     return redirect(url_for("index", year=year, month=month, day=day))
+
+
+@app.route("/upload", methods=["GET", "POST"])
+def upload_resources():
+    if request.method == "GET":
+        return render_template("resource_upload.html")
+
+    files = request.files.getlist("files")
+    if not files:
+        flash("No files selected.")
+        return redirect(url_for("upload_resources"))
+
+    now = dt.datetime.now()
+    stamp = now.strftime("%d-%m-%Y_%H-%M-%S")
+    target_dir = RESULT_DIR / now.strftime("%Y") / now.strftime("%m") / now.strftime("%d")
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    saved = 0
+    skipped = 0
+
+    for f in files:
+        if not f or not f.filename:
+            skipped += 1
+            continue
+        ext = Path(f.filename).suffix.lower()
+        if media_type_for_ext(ext) == "other":
+            skipped += 1
+            continue
+        base = normalized_upload_name(f.filename)
+        new_name = f"{base}@{stamp}{ext}"
+        dst = unique_path(target_dir, new_name)
+        try:
+            f.save(dst)
+            saved += 1
+        except Exception:
+            skipped += 1
+
+    flash(f"Upload complete. Saved: {saved}. Skipped: {skipped}.")
+    return redirect(url_for("upload_resources"))
 
 
 @app.route("/pinned")
@@ -358,4 +419,7 @@ def download(rel_path):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    host = os.getenv("RESOURCE_HOST", "0.0.0.0")
+    port = int(os.getenv("RESOURCE_PORT", "5000"))
+    debug = os.getenv("RESOURCE_DEBUG", "1").lower() in {"1", "true", "yes", "on"}
+    app.run(host=host, port=port, debug=debug)

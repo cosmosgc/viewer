@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Upload Resources</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 20px; background: #f5f6fa; color: #222; }
+    .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+    .card { background: #fff; border: 1px solid #ddd; padding: 14px; border-radius: 10px; max-width: 760px; }
+    input[type="file"] { margin: 10px 0; display: block; width: 100%; }
+    button { cursor: pointer; background: #111; color: #fff; border: none; border-radius: 7px; padding: 8px 12px; }
+    .hint { font-size: 12px; color: #666; margin-top: 8px; }
+    .flash { background: #fff6d8; border: 1px solid #f0de93; padding: 8px; border-radius: 8px; margin: 8px 0 12px; max-width: 760px; }
+    a { text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h2 style="margin:0;">Upload Resources</h2>
+    <a href="{{ url_for('index') }}">Back to Search</a>
+    <a href="{{ url_for('pinned') }}">Pinned</a>
+  </div>
+
+  {% with msgs = get_flashed_messages() %}
+    {% if msgs %}
+      {% for m in msgs %}
+        <div class="flash">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="card">
+    <form method="post" action="{{ url_for('upload_resources') }}" enctype="multipart/form-data">
+      <label for="files"><strong>Select image/video files</strong></label>
+      <input id="files" name="files" type="file" multiple accept="image/*,video/*">
+      <button type="submit">Upload</button>
+    </form>
+    <div class="hint">
+      Files are saved under <code>result/YYYY/MM/DD</code> and renamed to:
+      <code>name@DD-MM-YYYY_HH-MM-SS.ext</code>
+    </div>
+  </div>
+</body>
+</html>
