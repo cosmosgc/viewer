@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pinned Resources</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 20px; background: #f5f6fa; color: #222; }
+    .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+    .badge { background: #ff7a00; color: #fff; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 10px; }
+    .preview { width: 100%; height: 180px; object-fit: cover; background: #eee; border-radius: 8px; display: block; }
+    .meta { font-size: 12px; color: #555; margin-top: 8px; line-height: 1.35; word-break: break-all; }
+    .actions { margin-top: 8px; display: flex; gap: 7px; flex-wrap: wrap; }
+    .actions a, .actions button { font-size: 12px; text-decoration: none; }
+    button { cursor: pointer; background: #777; color: #fff; border: none; border-radius: 7px; padding: 7px 9px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h2 style="margin:0;">Pinned Resources</h2>
+    <span class="badge">{{ total }} files</span>
+    <a href="{{ url_for('index') }}">Back to Search</a>
+    <span style="font-size:12px;color:#666;">Pinned total: {{ pinned_count }}</span>
+  </div>
+
+  <div class="grid">
+    {% for item in items %}
+      <div class="card">
+        {% if item.kind == "image" %}
+          <img class="preview" src="{{ url_for('media', rel_path=item.rel_path) }}" alt="{{ item.name }}">
+        {% else %}
+          <video class="preview" controls preload="metadata">
+            <source src="{{ url_for('media', rel_path=item.rel_path) }}">
+          </video>
+        {% endif %}
+        <div class="meta">
+          <strong>{{ item.name }}</strong><br>
+          Date: {{ item.display_dt }}<br>
+          Path: {{ item.rel_path }}
+        </div>
+        <div class="actions">
+          <a href="{{ url_for('download', rel_path=item.rel_path) }}">Save file</a>
+          <a href="{{ url_for('day_view', year=item.year, month=item.month, day=item.day) }}">Open day</a>
+          <a href="{{ url_for('month_view', year=item.year, month=item.month) }}">Open month</a>
+
+          <form method="post" action="{{ url_for('pin_toggle') }}">
+            <input type="hidden" name="abs_path" value="{{ item.abs_path }}">
+            <input type="hidden" name="back" value="{{ request.full_path }}">
+            <button type="submit">Unpin</button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</body>
+</html>

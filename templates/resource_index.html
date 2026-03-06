@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resource Viewer</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 20px; background: #f5f6fa; color: #222; }
+    .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+    .badge { background: #0b67ff; color: #fff; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
+    form.filters { background: #fff; border: 1px solid #ddd; padding: 12px; border-radius: 10px; margin-bottom: 16px; }
+    input, select, button { padding: 7px 9px; margin-right: 8px; border: 1px solid #ccc; border-radius: 7px; }
+    button { cursor: pointer; background: #111; color: #fff; border: none; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 10px; }
+    .preview { width: 100%; height: 180px; object-fit: cover; background: #eee; border-radius: 8px; display: block; }
+    .meta { font-size: 12px; color: #555; margin-top: 8px; line-height: 1.35; word-break: break-all; }
+    .actions { margin-top: 8px; display: flex; gap: 7px; flex-wrap: wrap; }
+    .actions a, .actions button { font-size: 12px; text-decoration: none; }
+    .pin { background: #ff7a00; }
+    .unp { background: #777; }
+    .flash { background: #fff6d8; border: 1px solid #f0de93; padding: 8px; border-radius: 8px; margin: 8px 0 12px; }
+    .navbox { background: #fff; border: 1px solid #ddd; padding: 12px; border-radius: 10px; margin-bottom: 16px; }
+    .navrow { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .pill { font-size: 12px; background: #f1f4fb; border: 1px solid #d8deeb; border-radius: 999px; padding: 4px 9px; text-decoration: none; color: #223; }
+    .pager { margin: 14px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .pager a { font-size: 12px; text-decoration: none; border: 1px solid #d8deeb; background: #fff; border-radius: 999px; padding: 5px 10px; color: #223; }
+    .pager .info { font-size: 12px; color: #555; }
+    .preview-btn { border: none; padding: 0; background: transparent; width: 100%; cursor: pointer; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); display: none; align-items: center; justify-content: center; z-index: 9999; }
+    .modal-backdrop.open { display: flex; }
+    .modal-shell { width: min(96vw, 1400px); height: 94vh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; }
+    .modal-top { display: flex; justify-content: space-between; align-items: center; color: #fff; font-size: 13px; }
+    .modal-controls { display: flex; gap: 8px; }
+    .modal-btn { border: 1px solid #666; background: rgba(20, 20, 20, 0.7); color: #fff; border-radius: 7px; padding: 6px 10px; cursor: pointer; }
+    .modal-stage { display: grid; place-items: center; min-width: 0; min-height: 0; overflow: hidden; }
+    .modal-image, .modal-video { min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; border-radius: 10px; background: #111; }
+    .modal-video { width: 100%; height: 100%; object-fit: contain; }
+    .modal-bottom { color: #ddd; font-size: 12px; word-break: break-all; min-height: 0; max-height: 12vh; overflow: auto; }
+    .modal-hint { color: #b7b7b7; font-size: 11px; }
+    .modal-overlay-msg { position: absolute; inset: 0; display: none; place-items: center; background: rgba(0, 0, 0, 0.58); color: #fff; font-size: 18px; font-weight: 700; text-align: center; padding: 20px; }
+    .modal-stage.has-overlay .modal-overlay-msg { display: grid; }
+    .modal-toast { position: absolute; left: 50%; transform: translateX(-50%); bottom: 18px; background: rgba(20, 20, 20, 0.88); color: #fff; border: 1px solid #666; border-radius: 8px; padding: 7px 11px; font-size: 12px; display: none; }
+    .deleted-thumb { opacity: 0.42; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h2 style="margin:0;">Resource Viewer</h2>
+    <span class="badge">{{ total }} files</span>
+    <a href="{{ url_for('pinned') }}">Pinned ({{ pinned_count }})</a>
+    <span style="font-size:12px;color:#666;">Result dir: {{ result_dir }}</span>
+  </div>
+
+  {% with msgs = get_flashed_messages() %}
+    {% if msgs %}
+      {% for m in msgs %}
+        <div class="flash">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form class="filters" method="get" action="{{ url_for('index') }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search name/path">
+    <select name="year">
+      <option value="">All years</option>
+      {% for y in years %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+    <select name="month">
+      <option value="">All months</option>
+      {% if year and months_by_year.get(year) %}
+        {% for m in months_by_year.get(year) %}
+          <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      {% endif %}
+    </select>
+    <select name="day">
+      <option value="">All days</option>
+      {% if year and month and days_by_ym.get(year ~ "-" ~ month) %}
+        {% for d in days_by_ym.get(year ~ "-" ~ month) %}
+          <option value="{{ d }}" {% if d == day %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      {% endif %}
+    </select>
+    <select name="media">
+      <option value="all" {% if media == "all" %}selected{% endif %}>All media</option>
+      <option value="image" {% if media == "image" %}selected{% endif %}>Images</option>
+      <option value="video" {% if media == "video" %}selected{% endif %}>Videos</option>
+    </select>
+    <select name="sort">
+      <option value="desc" {% if sort_order == "desc" %}selected{% endif %}>Date desc</option>
+      <option value="asc" {% if sort_order == "asc" %}selected{% endif %}>Date asc</option>
+    </select>
+    <button type="submit">Apply</button>
+    <a href="{{ url_for('index') }}">Reset</a>
+  </form>
+
+  <div class="navbox">
+    <strong>Browse by year/month</strong>
+    <div class="navrow">
+      {% for y in years %}
+        <a class="pill" href="{{ url_for('index', year=y, media=media, sort=sort_order) }}">{{ y }}</a>
+      {% endfor %}
+    </div>
+    {% if year and months_by_year.get(year) %}
+      <div class="navrow">
+        {% for m in months_by_year.get(year) %}
+          <a class="pill" href="{{ url_for('index', year=year, month=m, media=media, sort=sort_order) }}">{{ year }}/{{ m }}</a>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+  {% if not has_scope %}
+    <div class="flash">Pick a year or month to load files. This keeps loading fast for large collections.</div>
+  {% endif %}
+
+  {% if has_scope and pages > 1 %}
+    <div class="pager">
+      {% if page > 1 %}
+        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page-1) }}">Previous</a>
+      {% endif %}
+      <span class="info">Page {{ page }} / {{ pages }} ({{ page_size }} per page)</span>
+      {% if page < pages %}
+        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page+1) }}">Next</a>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div class="grid">
+    {% for item in items %}
+      <div class="card">
+        <button
+          class="preview-btn js-open-modal"
+          type="button"
+          data-index="{{ loop.index0 }}"
+          data-name="{{ item.name }}"
+          data-path="{{ item.rel_path }}"
+          data-kind="{{ item.kind }}"
+          data-src="{{ url_for('media', rel_path=item.rel_path) }}"
+        >
+          {% if item.kind == "image" %}
+            <img class="preview lazy-media" data-src="{{ url_for('media', rel_path=item.rel_path) }}" alt="{{ item.name }}" loading="lazy" decoding="async">
+          {% else %}
+            <video class="preview lazy-media" controls preload="none" loop>
+              <source data-src="{{ url_for('media', rel_path=item.rel_path) }}">
+            </video>
+          {% endif %}
+        </button>
+        <div class="meta">
+          <strong>{{ item.name }}</strong><br>
+          Date: {{ item.display_dt }}<br>
+          Path: {{ item.rel_path }}
+        </div>
+        <div class="actions">
+          <a href="{{ url_for('download', rel_path=item.rel_path) }}">Save file</a>
+          <a href="{{ url_for('day_view', year=item.year, month=item.month, day=item.day) }}">Open day</a>
+          <a href="{{ url_for('month_view', year=item.year, month=item.month) }}">Open month</a>
+          <form method="post" action="{{ url_for('pin_toggle') }}">
+            <input type="hidden" name="abs_path" value="{{ item.abs_path }}">
+            <input type="hidden" name="back" value="{{ request.full_path }}">
+            <button class="{% if item.is_pinned %}unp{% else %}pin{% endif %}" type="submit">
+              {% if item.is_pinned %}Unpin{% else %}Pin{% endif %}
+            </button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if has_scope and pages > 1 %}
+    <div class="pager">
+      {% if page > 1 %}
+        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page-1) }}">Previous</a>
+      {% endif %}
+      <span class="info">Page {{ page }} / {{ pages }}</span>
+      {% if page < pages %}
+        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page+1) }}">Next</a>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div id="mediaModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-shell">
+      <div class="modal-top">
+        <div>
+          <div id="modalCounter"></div>
+          <div class="modal-hint">Keys: A/D or ←/→ next-prev, F fullscreen, Space play/pause, M mute, Delete remove</div>
+        </div>
+        <div class="modal-controls">
+          <button id="modalPrev" type="button" class="modal-btn">Previous</button>
+          <button id="modalNext" type="button" class="modal-btn">Next</button>
+          <button id="modalClose" type="button" class="modal-btn">Close</button>
+        </div>
+      </div>
+      <div class="modal-stage">
+        <img id="modalImage" class="modal-image" alt="" style="display:none;">
+        <video id="modalVideo" class="modal-video" controls loop style="display:none;"></video>
+        <div id="modalDeleted" class="modal-overlay-msg"></div>
+        <div id="modalToast" class="modal-toast"></div>
+      </div>
+      <div id="modalMeta" class="modal-bottom"></div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const lazyNodes = document.querySelectorAll(".lazy-media");
+      if (!lazyNodes.length) return;
+
+      const hydrate = (el) => {
+        if (el.tagName === "IMG") {
+          const src = el.getAttribute("data-src");
+          if (src && !el.getAttribute("src")) el.setAttribute("src", src);
+          return;
+        }
+        if (el.tagName === "VIDEO") {
+          const source = el.querySelector("source[data-src]");
+          if (!source) return;
+          const src = source.getAttribute("data-src");
+          if (!src || source.getAttribute("src")) return;
+          source.setAttribute("src", src);
+          el.load();
+        }
+      };
+
+      if (!("IntersectionObserver" in window)) {
+        lazyNodes.forEach(hydrate);
+        return;
+      }
+
+      const io = new IntersectionObserver((entries, observer) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          hydrate(entry.target);
+          observer.unobserve(entry.target);
+        });
+      }, { rootMargin: "300px 0px" });
+
+      lazyNodes.forEach((el) => io.observe(el));
+    })();
+
+    (() => {
+      const triggers = Array.from(document.querySelectorAll(".js-open-modal"));
+
+      const modal = document.getElementById("mediaModal");
+      const modalImage = document.getElementById("modalImage");
+      const modalVideo = document.getElementById("modalVideo");
+      const modalMeta = document.getElementById("modalMeta");
+      const modalCounter = document.getElementById("modalCounter");
+      const prevBtn = document.getElementById("modalPrev");
+      const nextBtn = document.getElementById("modalNext");
+      const closeBtn = document.getElementById("modalClose");
+      const modalDeleted = document.getElementById("modalDeleted");
+      const modalToast = document.getElementById("modalToast");
+      const modalStage = document.querySelector(".modal-stage");
+
+      const items = triggers.map((el, idx) => ({
+        index: idx,
+        kind: el.dataset.kind,
+        src: el.dataset.src,
+        name: el.dataset.name,
+        path: el.dataset.path,
+        el,
+        deleted: false
+      }));
+
+      let current = 0;
+      let open = false;
+      const prevPageUrl = "{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page-1) if page > 1 else '' }}";
+      const nextPageUrl = "{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page+1) if page < pages else '' }}";
+
+      const render = () => {
+        if (!items.length) return;
+        const item = items[current];
+        modalCounter.textContent = (current + 1) + " / " + items.length;
+        modalMeta.textContent = item.name + " | " + item.path;
+        if (item.deleted) {
+          modalVideo.pause();
+          modalVideo.removeAttribute("src");
+          modalVideo.style.display = "none";
+          modalImage.removeAttribute("src");
+          modalImage.style.display = "none";
+          modalDeleted.textContent = "Deleted: " + item.name;
+          modalStage.classList.add("has-overlay");
+          return;
+        }
+        modalStage.classList.remove("has-overlay");
+        modalDeleted.textContent = "";
+        if (item.kind === "image") {
+          modalVideo.pause();
+          modalVideo.removeAttribute("src");
+          modalVideo.style.display = "none";
+          modalImage.src = item.src;
+          modalImage.alt = item.name;
+          modalImage.style.display = "block";
+        } else {
+          modalImage.removeAttribute("src");
+          modalImage.style.display = "none";
+          modalVideo.src = item.src;
+          modalVideo.style.display = "block";
+          modalVideo.load();
+        }
+      };
+
+      const openModal = (index) => {
+        if (!items.length) return;
+        current = index;
+        open = true;
+        modal.classList.add("open");
+        modal.setAttribute("aria-hidden", "false");
+        render();
+      };
+
+      const closeModal = () => {
+        open = false;
+        modal.classList.remove("open");
+        modal.setAttribute("aria-hidden", "true");
+        modalVideo.pause();
+        modalStage.classList.remove("has-overlay");
+        modalToast.style.display = "none";
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+      };
+
+      const prev = () => {
+        if (!items.length) return;
+        current = (current - 1 + items.length) % items.length;
+        render();
+      };
+
+      const next = () => {
+        if (!items.length) return;
+        current = (current + 1) % items.length;
+        render();
+      };
+
+      const hasActiveVideo = () => {
+        return modalVideo.style.display !== "none" && !!modalVideo.src;
+      };
+
+      const showToast = (msg) => {
+        modalToast.textContent = msg;
+        modalToast.style.display = "block";
+        window.setTimeout(() => {
+          modalToast.style.display = "none";
+        }, 1500);
+      };
+
+      const deleteCurrent = async () => {
+        if (!items.length) return;
+        const item = items[current];
+        if (item.deleted) {
+          showToast("Already deleted");
+          return;
+        }
+        try {
+          const res = await fetch("{{ url_for('delete_file') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rel_path: item.path })
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok || !payload.ok) {
+            showToast(payload.message || "Delete failed");
+            return;
+          }
+          item.deleted = true;
+          if (item.el) item.el.classList.add("deleted-thumb");
+          render();
+          showToast(payload.message || "Deleted");
+        } catch (_) {
+          showToast("Delete failed");
+        }
+      };
+
+      const togglePlayPause = () => {
+        if (!hasActiveVideo()) return;
+        if (modalVideo.paused) {
+          modalVideo.play().catch(() => {});
+        } else {
+          modalVideo.pause();
+        }
+      };
+
+      const toggleFullscreen = async () => {
+        const target = hasActiveVideo() ? modalVideo : document.querySelector(".modal-shell");
+        if (!target) return;
+        if (document.fullscreenElement) {
+          try { await document.exitFullscreen(); } catch (_) {}
+          return;
+        }
+        try { await target.requestFullscreen(); } catch (_) {}
+      };
+
+      triggers.forEach((el) => {
+        el.addEventListener("click", () => openModal(Number(el.dataset.index)));
+      });
+
+      prevBtn.addEventListener("click", prev);
+      nextBtn.addEventListener("click", next);
+      closeBtn.addEventListener("click", closeModal);
+
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) closeModal();
+      });
+
+      window.addEventListener("keydown", (event) => {
+        const t = event.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        const key = event.key.toLowerCase();
+        if (!open) {
+          if (key === "w") {
+            event.preventDefault();
+            window.scrollBy({ top: -140, left: 0, behavior: "smooth" });
+            return;
+          }
+          if (key === "s") {
+            event.preventDefault();
+            window.scrollBy({ top: 140, left: 0, behavior: "smooth" });
+            return;
+          }
+          if ((key === "a" || key === "arrowleft") && prevPageUrl) {
+            event.preventDefault();
+            window.location.href = prevPageUrl;
+            return;
+          }
+          if ((key === "d" || key === "arrowright") && nextPageUrl) {
+            event.preventDefault();
+            window.location.href = nextPageUrl;
+          }
+          return;
+        }
+        if (key === "escape") {
+          event.preventDefault();
+          closeModal();
+          return;
+        }
+        if (key === "arrowleft" || key === "a") {
+          event.preventDefault();
+          prev();
+          return;
+        }
+        if (key === "arrowright" || key === "d") {
+          event.preventDefault();
+          next();
+          return;
+        }
+        if (key === "f") {
+          event.preventDefault();
+          toggleFullscreen();
+          return;
+        }
+        if (key === " " || key === "k") {
+          event.preventDefault();
+          togglePlayPause();
+          return;
+        }
+        if (key === "m") {
+          event.preventDefault();
+          if (hasActiveVideo()) modalVideo.muted = !modalVideo.muted;
+          return;
+        }
+        if (key === "l") {
+          event.preventDefault();
+          if (hasActiveVideo()) modalVideo.currentTime = Math.min(modalVideo.duration || 0, modalVideo.currentTime + 10);
+          return;
+        }
+        if (key === "j") {
+          event.preventDefault();
+          if (hasActiveVideo()) modalVideo.currentTime = Math.max(0, modalVideo.currentTime - 10);
+          return;
+        }
+        if (key === "0") {
+          event.preventDefault();
+          if (hasActiveVideo()) modalVideo.currentTime = 0;
+          return;
+        }
+        if (key === "delete") {
+          event.preventDefault();
+          deleteCurrent();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
