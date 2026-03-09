@@ -23,6 +23,7 @@
     <span class="badge">{{ total }} files</span>
     <a href="{{ url_for('index') }}">Back to Search</a>
     <a href="{{ url_for('upload_resources') }}">Upload</a>
+    <a href="{{ url_for('ingest_resources') }}">Ingest Folder ({{ inbox_count }})</a>
     <span style="font-size:12px;color:#666;">Pinned total: {{ pinned_count }}</span>
   </div>
 

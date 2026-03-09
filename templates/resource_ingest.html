@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ingest Folder</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 20px; background: #f5f6fa; color: #222; }
+    .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+    .card { background: #fff; border: 1px solid #ddd; padding: 14px; border-radius: 10px; max-width: 900px; }
+    .flash { background: #fff6d8; border: 1px solid #f0de93; padding: 8px; border-radius: 8px; margin: 8px 0 12px; max-width: 900px; }
+    .hint { font-size: 12px; color: #666; margin-top: 8px; line-height: 1.45; }
+    button { cursor: pointer; background: #111; color: #fff; border: none; border-radius: 7px; padding: 8px 12px; }
+    code { background: #eef2f8; border-radius: 6px; padding: 1px 5px; }
+    ul { margin: 8px 0 0 0; padding-left: 18px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h2 style="margin:0;">Ingest Folder</h2>
+    <a href="{{ url_for('index') }}">Back to Search</a>
+    <a href="{{ url_for('upload_resources') }}">Upload</a>
+    <a href="{{ url_for('pinned') }}">Pinned</a>
+  </div>
+
+  {% with msgs = get_flashed_messages() %}
+    {% if msgs %}
+      {% for m in msgs %}
+        <div class="flash">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="card">
+    <p style="margin-top:0;"><strong>Inbox folder:</strong> <code>{{ inbox_dir }}</code></p>
+    <p><strong>Marker file:</strong> <code>{{ inbox_marker }}</code> (empty txt file)</p>
+    <p><strong>Pending media files:</strong> {{ pending_count }}</p>
+
+    <form method="post" action="{{ url_for('ingest_resources') }}">
+      <button type="submit">Process Inbox</button>
+    </form>
+
+    <div class="hint">
+      Behavior:
+      <br>1) Reads image/video files from the inbox folder.
+      <br>2) Chooses date from filename stamp first, then image EXIF date (if available), then file modified time.
+      <br>3) Moves files into <code>result/YYYY/MM/DD</code> and renames to <code>name@DD-MM-YYYY_HH-MM-SS.ext</code>.
+    </div>
+
+    {% if pending_preview %}
+      <p style="margin-bottom:4px;"><strong>First pending files:</strong></p>
+      <ul>
+        {% for name in pending_preview %}
+          <li>{{ name }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+</body>
+</html>

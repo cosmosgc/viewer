@@ -2,6 +2,7 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, send_file, url_for
@@ -11,6 +12,8 @@ from werkzeug.utils import secure_filename
 APP_DIR = Path(__file__).resolve().parent
 RESULT_DIR = Path(os.getenv("RESOURCE_RESULT_DIR", APP_DIR.parent / "result")).resolve()
 PINNED_JSON = Path(os.getenv("RESOURCE_PINNED_JSON", APP_DIR / "pinned_files.json")).resolve()
+INBOX_DIR = Path(os.getenv("RESOURCE_INBOX_DIR", APP_DIR / "resource_inbox")).resolve()
+INBOX_MARKER = INBOX_DIR / "drop_files_here.txt"
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v"}
@@ -20,6 +23,12 @@ FILENAME_DT_RE = re.compile(r"@(\d{2})-(\d{2})-(\d{4})_(\d{2})-(\d{2})-(\d{2})")
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "resource-viewer-secret")
 PAGE_SIZE = max(1, int(os.getenv("RESOURCE_PAGE_SIZE", "120")))
+
+try:
+    from PIL import Image, ExifTags
+except Exception:
+    Image = None
+    ExifTags = None
 
 
 def parse_dt_from_name(file_name):
@@ -40,6 +49,41 @@ def media_type_for_ext(ext):
     if ext in VIDEO_EXTS:
         return "video"
     return "other"
+
+
+def ensure_inbox_dir():
+    INBOX_DIR.mkdir(parents=True, exist_ok=True)
+    INBOX_MARKER.touch(exist_ok=True)
+
+
+def exif_datetime_for_image(path):
+    if Image is None:
+        return None
+    try:
+        with Image.open(path) as img:
+            exif = getattr(img, "getexif", lambda: None)()
+            if not exif:
+                return None
+            raw = exif.get(36867) or exif.get(306)
+            if not raw:
+                return None
+            return dt.datetime.strptime(str(raw), "%Y:%m:%d %H:%M:%S")
+    except Exception:
+        return None
+
+
+def metadata_datetime_for_file(path):
+    parsed = parse_dt_from_name(path.name)
+    if parsed:
+        return parsed
+    if media_type_for_ext(path.suffix.lower()) == "image":
+        exif_dt = exif_datetime_for_image(path)
+        if exif_dt:
+            return exif_dt
+    try:
+        return dt.datetime.fromtimestamp(path.stat().st_mtime)
+    except Exception:
+        return dt.datetime.now()
 
 
 def load_pins():
@@ -230,6 +274,20 @@ def unique_path(target_dir, file_name):
         i += 1
 
 
+def list_inbox_candidates():
+    ensure_inbox_dir()
+    files = []
+    for root, _, names in os.walk(INBOX_DIR):
+        for file_name in names:
+            p = Path(root) / file_name
+            if p.resolve() == INBOX_MARKER.resolve():
+                continue
+            if media_type_for_ext(p.suffix.lower()) == "other":
+                continue
+            files.append(p)
+    return files
+
+
 @app.route("/")
 def index():
     q = request.args.get("q", "")
@@ -275,6 +333,7 @@ def index():
         page=page,
         pages=pages,
         page_size=PAGE_SIZE,
+        inbox_count=len(list_inbox_candidates()),
     )
 
 
@@ -327,6 +386,45 @@ def upload_resources():
     return redirect(url_for("upload_resources"))
 
 
+@app.route("/ingest", methods=["GET", "POST"])
+def ingest_resources():
+    candidates = list_inbox_candidates()
+    if request.method == "GET":
+        return render_template(
+            "resource_ingest.html",
+            inbox_dir=str(INBOX_DIR),
+            inbox_marker=INBOX_MARKER.name,
+            pending_count=len(candidates),
+            pending_preview=[p.name for p in sorted(candidates)[:30]],
+        )
+
+    moved = 0
+    skipped = 0
+    failed = 0
+
+    for src in candidates:
+        ext = src.suffix.lower()
+        if media_type_for_ext(ext) == "other":
+            skipped += 1
+            continue
+        try:
+            file_dt = metadata_datetime_for_file(src)
+            stamp = file_dt.strftime("%d-%m-%Y_%H-%M-%S")
+            target_dir = RESULT_DIR / file_dt.strftime("%Y") / file_dt.strftime("%m") / file_dt.strftime("%d")
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+            base = normalized_upload_name(src.name)
+            new_name = f"{base}@{stamp}{ext}"
+            dst = unique_path(target_dir, new_name)
+            shutil.move(str(src), str(dst))
+            moved += 1
+        except Exception:
+            failed += 1
+
+    flash(f"Ingest complete. Moved: {moved}. Failed: {failed}. Skipped: {skipped}.")
+    return redirect(url_for("ingest_resources"))
+
+
 @app.route("/pinned")
 def pinned():
     pins = load_pins()
@@ -372,6 +470,7 @@ def pinned():
         items=pinned_items,
         total=len(pinned_items),
         pinned_count=len(pins),
+        inbox_count=len(list_inbox_candidates()),
     )
 
 
@@ -453,6 +552,7 @@ def download(rel_path):
 
 
 if __name__ == "__main__":
+    ensure_inbox_dir()
     host = os.getenv("RESOURCE_HOST", "0.0.0.0")
     port = int(os.getenv("RESOURCE_PORT", "5000"))
     debug = os.getenv("RESOURCE_DEBUG", "1").lower() in {"1", "true", "yes", "on"}

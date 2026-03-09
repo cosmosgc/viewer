@@ -20,6 +20,7 @@
     <h2 style="margin:0;">Upload Resources</h2>
     <a href="{{ url_for('index') }}">Back to Search</a>
     <a href="{{ url_for('pinned') }}">Pinned</a>
+    <a href="{{ url_for('ingest_resources') }}">Ingest Folder</a>
   </div>
 
   {% with msgs = get_flashed_messages() %}
