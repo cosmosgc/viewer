@@ -129,6 +129,39 @@ def apply_filters(items, q, media):
     return filtered
 
 
+def apply_sort(items, sort_order):
+    mode = (sort_order or "date_desc").lower()
+    aliases = {
+        "desc": "date_desc",
+        "asc": "date_asc",
+    }
+    mode = aliases.get(mode, mode)
+
+    if mode == "date_asc":
+        items.sort(key=lambda x: (x["sort_ts"], x["name"].lower()))
+    elif mode == "size_desc":
+        items.sort(key=lambda x: (x.get("size_bytes", 0), x["sort_ts"]), reverse=True)
+    elif mode == "size_asc":
+        items.sort(key=lambda x: (x.get("size_bytes", 0), x["sort_ts"]))
+    elif mode == "name_asc":
+        items.sort(key=lambda x: (x["name"].lower(), x["sort_ts"]))
+    elif mode == "name_desc":
+        items.sort(key=lambda x: (x["name"].lower(), x["sort_ts"]), reverse=True)
+    elif mode == "path_asc":
+        items.sort(key=lambda x: (x["rel_path"].lower(), x["sort_ts"]))
+    elif mode == "path_desc":
+        items.sort(key=lambda x: (x["rel_path"].lower(), x["sort_ts"]), reverse=True)
+    elif mode == "type_asc":
+        items.sort(key=lambda x: (x["kind"], x["name"].lower(), x["sort_ts"]))
+    elif mode == "type_desc":
+        items.sort(key=lambda x: (x["kind"], x["name"].lower(), x["sort_ts"]), reverse=True)
+    else:
+        mode = "date_desc"
+        items.sort(key=lambda x: (x["sort_ts"], x["name"].lower()), reverse=True)
+
+    return mode
+
+
 def collect_calendar():
     if not RESULT_DIR.exists():
         return [], {}, {}
@@ -204,7 +237,7 @@ def index():
     month = request.args.get("month", "")
     day = request.args.get("day", "")
     media = request.args.get("media", "all")
-    sort_order = request.args.get("sort", "desc")
+    sort_order = request.args.get("sort", "date_desc")
     try:
         page = int(request.args.get("page", "1"))
     except ValueError:
@@ -216,8 +249,7 @@ def index():
     items = scan_resources(base_dir) if base_dir else []
     filtered = apply_filters(items, q, media)
 
-    reverse = sort_order != "asc"
-    filtered.sort(key=lambda x: x["sort_ts"], reverse=reverse)
+    sort_order = apply_sort(filtered, sort_order)
     page_items, total, page, pages = paginate(filtered, page, PAGE_SIZE)
 
     pins = load_pins()

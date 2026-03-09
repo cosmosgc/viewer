@@ -104,8 +104,16 @@
       <option value="video" {% if media == "video" %}selected{% endif %}>Videos</option>
     </select>
     <select name="sort">
-      <option value="desc" {% if sort_order == "desc" %}selected{% endif %}>Date desc</option>
-      <option value="asc" {% if sort_order == "asc" %}selected{% endif %}>Date asc</option>
+      <option value="date_desc" {% if sort_order == "date_desc" or sort_order == "desc" %}selected{% endif %}>Date newest</option>
+      <option value="date_asc" {% if sort_order == "date_asc" or sort_order == "asc" %}selected{% endif %}>Date oldest</option>
+      <option value="size_desc" {% if sort_order == "size_desc" %}selected{% endif %}>Size largest</option>
+      <option value="size_asc" {% if sort_order == "size_asc" %}selected{% endif %}>Size smallest</option>
+      <option value="name_asc" {% if sort_order == "name_asc" %}selected{% endif %}>Name A-Z</option>
+      <option value="name_desc" {% if sort_order == "name_desc" %}selected{% endif %}>Name Z-A</option>
+      <option value="path_asc" {% if sort_order == "path_asc" %}selected{% endif %}>Path A-Z</option>
+      <option value="path_desc" {% if sort_order == "path_desc" %}selected{% endif %}>Path Z-A</option>
+      <option value="type_asc" {% if sort_order == "type_asc" %}selected{% endif %}>Type A-Z</option>
+      <option value="type_desc" {% if sort_order == "type_desc" %}selected{% endif %}>Type Z-A</option>
     </select>
     <button type="submit">Apply</button>
     <a href="{{ url_for('index') }}">Reset</a>
