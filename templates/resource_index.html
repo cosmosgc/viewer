@@ -32,11 +32,24 @@
     .modal-shell { width: min(96vw, 1400px); height: 94vh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; }
     .modal-top { display: flex; justify-content: space-between; align-items: center; color: #fff; font-size: 13px; }
     .modal-controls { display: flex; gap: 8px; }
+    .modal-toggle { display: inline-flex; align-items: center; gap: 5px; color: #ddd; font-size: 12px; }
     .modal-btn { border: 1px solid #666; background: rgba(20, 20, 20, 0.7); color: #fff; border-radius: 7px; padding: 6px 10px; cursor: pointer; }
     .modal-stage { display: grid; place-items: center; min-width: 0; min-height: 0; overflow: hidden; }
     .modal-image, .modal-video { min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; border-radius: 10px; background: #111; }
     .modal-video { width: 100%; height: 100%; object-fit: contain; }
-    .modal-bottom { color: #ddd; font-size: 12px; word-break: break-all; min-height: 0; max-height: 12vh; overflow: auto; }
+    .modal-bottom { color: #ddd; font-size: 12px; min-height: 0; max-height: 12vh; overflow: auto; }
+    .meta-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+    .meta-tag { display: inline-flex; gap: 5px; align-items: center; border-radius: 999px; padding: 4px 10px; border: 1px solid transparent; max-width: 100%; }
+    .meta-tag-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.9; }
+    .meta-tag-value { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .meta-tag-name { background: #1d2433; border-color: #2b3a58; color: #e8f0ff; }
+    .meta-tag-path { background: #1a2a23; border-color: #2c4a3d; color: #d8ffe9; max-width: 100%; }
+    .meta-tag-path .meta-tag-value { max-width: min(56vw, 760px); }
+    .meta-tag-size { background: #2a2318; border-color: #50402b; color: #ffe9c7; }
+    .meta-tag-date { background: #2a1f2f; border-color: #4a3655; color: #f4dcff; }
+    .meta-tag-kind { background: #18292b; border-color: #2a4d50; color: #d8fdff; }
+    .meta-tag-res { background: #261f1a; border-color: #4f3d30; color: #ffe6d4; }
+    .meta-tag-dur { background: #1f1f1f; border-color: #474747; color: #f1f1f1; }
     .modal-hint { color: #b7b7b7; font-size: 11px; }
     .modal-overlay-msg { position: absolute; inset: 0; display: none; place-items: center; background: rgba(0, 0, 0, 0.58); color: #fff; font-size: 18px; font-weight: 700; text-align: center; padding: 20px; }
     .modal-stage.has-overlay .modal-overlay-msg { display: grid; }
@@ -139,6 +152,8 @@
           data-index="{{ loop.index0 }}"
           data-name="{{ item.name }}"
           data-path="{{ item.rel_path }}"
+          data-date="{{ item.display_dt }}"
+          data-size="{{ item.size_bytes }}"
           data-kind="{{ item.kind }}"
           data-src="{{ url_for('media', rel_path=item.rel_path) }}"
         >
@@ -191,6 +206,10 @@
           <div class="modal-hint">Keys: A/D or ←/→ next-prev, F fullscreen, Space play/pause, M mute, Delete remove</div>
         </div>
         <div class="modal-controls">
+          <label class="modal-toggle" for="modalAutoplay">
+            <input id="modalAutoplay" type="checkbox">
+            Autoplay
+          </label>
           <button id="modalPrev" type="button" class="modal-btn">Previous</button>
           <button id="modalNext" type="button" class="modal-btn">Next</button>
           <button id="modalClose" type="button" class="modal-btn">Close</button>
@@ -254,9 +273,13 @@
       const prevBtn = document.getElementById("modalPrev");
       const nextBtn = document.getElementById("modalNext");
       const closeBtn = document.getElementById("modalClose");
+      const autoplayToggle = document.getElementById("modalAutoplay");
       const modalDeleted = document.getElementById("modalDeleted");
       const modalToast = document.getElementById("modalToast");
       const modalStage = document.querySelector(".modal-stage");
+      const AUTOPLAY_KEY = "resource-viewer-modal-autoplay";
+      let autoplayEnabled = window.localStorage.getItem(AUTOPLAY_KEY) === "1";
+      autoplayToggle.checked = autoplayEnabled;
 
       const items = triggers.map((el, idx) => ({
         index: idx,
@@ -264,6 +287,8 @@
         src: el.dataset.src,
         name: el.dataset.name,
         path: el.dataset.path,
+        displayDt: el.dataset.date || "",
+        sizeBytes: Number(el.dataset.size || 0),
         el,
         deleted: false
       }));
@@ -277,7 +302,7 @@
         if (!items.length) return;
         const item = items[current];
         modalCounter.textContent = (current + 1) + " / " + items.length;
-        modalMeta.textContent = item.name + " | " + item.path;
+        modalMeta.innerHTML = renderMeta(item);
         if (item.deleted) {
           modalVideo.pause();
           modalVideo.removeAttribute("src");
@@ -294,16 +319,89 @@
           modalVideo.pause();
           modalVideo.removeAttribute("src");
           modalVideo.style.display = "none";
+          modalVideo.autoplay = false;
+          modalVideo.onloadedmetadata = null;
           modalImage.src = item.src;
           modalImage.alt = item.name;
+          modalImage.onload = () => {
+            if (item.index !== current || item.deleted) return;
+            if (!modalImage.naturalWidth || !modalImage.naturalHeight) return;
+            modalMeta.innerHTML = renderMeta(item, { resolution: modalImage.naturalWidth + "x" + modalImage.naturalHeight });
+          };
           modalImage.style.display = "block";
+          if (modalImage.complete && modalImage.naturalWidth && modalImage.naturalHeight) {
+            modalMeta.innerHTML = renderMeta(item, { resolution: modalImage.naturalWidth + "x" + modalImage.naturalHeight });
+          }
         } else {
           modalImage.removeAttribute("src");
+          modalImage.onload = null;
           modalImage.style.display = "none";
           modalVideo.src = item.src;
+          modalVideo.autoplay = autoplayEnabled;
+          modalVideo.onloadedmetadata = () => {
+            if (item.index !== current || item.deleted) return;
+            const extras = {};
+            if (modalVideo.videoWidth && modalVideo.videoHeight) {
+              extras.resolution = modalVideo.videoWidth + "x" + modalVideo.videoHeight;
+            }
+            if (Number.isFinite(modalVideo.duration) && modalVideo.duration > 0) {
+              extras.duration = formatDuration(modalVideo.duration);
+            }
+            modalMeta.innerHTML = renderMeta(item, extras);
+          };
           modalVideo.style.display = "block";
           modalVideo.load();
+          if (autoplayEnabled) {
+            modalVideo.play().catch(() => {});
+          }
         }
+      };
+
+      const formatBytes = (bytes) => {
+        if (!Number.isFinite(bytes) || bytes <= 0) return "";
+        const units = ["B", "KB", "MB", "GB", "TB"];
+        const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+        const value = bytes / Math.pow(1024, idx);
+        return value.toFixed(value >= 10 || idx === 0 ? 0 : 1) + " " + units[idx];
+      };
+
+      const formatDuration = (seconds) => {
+        const total = Math.floor(seconds);
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+        if (h > 0) {
+          return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+        }
+        return m + ":" + String(s).padStart(2, "0");
+      };
+
+      const escapeHtml = (value) => {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll("\"", "&quot;")
+          .replaceAll("'", "&#39;");
+      };
+
+      const tag = (label, value, cls) => {
+        if (!value) return "";
+        return `<span class="meta-tag ${cls}"><span class="meta-tag-label">${escapeHtml(label)}</span><span class="meta-tag-value">${escapeHtml(value)}</span></span>`;
+      };
+
+      const renderMeta = (item, extras = {}) => {
+        return `<div class="meta-tags">${
+          [
+            tag("name", item.name, "meta-tag-name"),
+            tag("path", item.path, "meta-tag-path"),
+            tag("size", item.sizeBytes > 0 ? formatBytes(item.sizeBytes) : "", "meta-tag-size"),
+            tag("date", item.displayDt, "meta-tag-date"),
+            tag("type", item.kind, "meta-tag-kind"),
+            tag("res", extras.resolution, "meta-tag-res"),
+            tag("dur", extras.duration, "meta-tag-dur")
+          ].join("")
+        }</div>`;
       };
 
       const openModal = (index) => {
@@ -404,6 +502,15 @@
       prevBtn.addEventListener("click", prev);
       nextBtn.addEventListener("click", next);
       closeBtn.addEventListener("click", closeModal);
+      autoplayToggle.addEventListener("change", () => {
+        autoplayEnabled = autoplayToggle.checked;
+        window.localStorage.setItem(AUTOPLAY_KEY, autoplayEnabled ? "1" : "0");
+        if (!hasActiveVideo()) return;
+        modalVideo.autoplay = autoplayEnabled;
+        if (autoplayEnabled) {
+          modalVideo.play().catch(() => {});
+        }
+      });
 
       modal.addEventListener("click", (event) => {
         if (event.target === modal) closeModal();

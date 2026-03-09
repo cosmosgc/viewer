@@ -109,6 +109,7 @@ def scan_resources(base_dir):
                     "day": day,
                     "display_dt": display_dt,
                     "sort_ts": sort_ts,
+                    "size_bytes": stat.st_size,
                 }
             )
     return items
@@ -328,6 +329,7 @@ def pinned():
                 "day": parts[2] if len(parts) > 2 else "",
                 "display_dt": display_dt,
                 "sort_ts": sort_ts,
+                "size_bytes": stat.st_size,
             }
         )
     pinned_items.sort(key=lambda x: x["sort_ts"], reverse=True)
