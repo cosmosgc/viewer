@@ -1,3 +1,5 @@
 /pinned_files.json
 /__pycache__
 templates/s.js
+dist
+build

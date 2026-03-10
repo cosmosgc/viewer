@@ -62,6 +62,7 @@
     <h2 style="margin:0;">Resource Viewer</h2>
     <span class="badge">{{ total }} files</span>
     <a href="{{ url_for('pinned') }}">Pinned ({{ pinned_count }})</a>
+    <a href="{{ url_for('stats_view') }}">Stats</a>
     <a href="{{ url_for('upload_resources') }}">Upload</a>
     <a href="{{ url_for('ingest_resources') }}">Ingest Folder ({{ inbox_count }})</a>
     <span style="font-size:12px;color:#666;">Result dir: {{ result_dir }}</span>

@@ -3,14 +3,33 @@ import json
 import os
 import re
 import shutil
+import socket
+import sys
+import threading
+import urllib.request
+import webbrowser
+from collections import defaultdict
 from pathlib import Path
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, send_file, url_for
+from werkzeug.serving import make_server
 from werkzeug.utils import secure_filename
 
+try:
+    import pystray
+except Exception:
+    pystray = None
 
-APP_DIR = Path(__file__).resolve().parent
-RESULT_DIR = Path(os.getenv("RESOURCE_RESULT_DIR", APP_DIR.parent / "result")).resolve()
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(sys.executable).resolve().parent
+    TEMPLATE_DIR = Path(getattr(sys, "_MEIPASS", APP_DIR)) / "templates"
+    DEFAULT_RESULT_DIR = APP_DIR / "result"
+else:
+    APP_DIR = Path(__file__).resolve().parent
+    TEMPLATE_DIR = APP_DIR / "templates"
+    DEFAULT_RESULT_DIR = APP_DIR.parent / "result"
+
+RESULT_DIR = Path(os.getenv("RESOURCE_RESULT_DIR", DEFAULT_RESULT_DIR)).resolve()
 PINNED_JSON = Path(os.getenv("RESOURCE_PINNED_JSON", APP_DIR / "pinned_files.json")).resolve()
 INBOX_DIR = Path(os.getenv("RESOURCE_INBOX_DIR", APP_DIR / "resource_inbox")).resolve()
 INBOX_MARKER = INBOX_DIR / "drop_files_here.txt"
@@ -20,7 +39,7 @@ VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v"}
 
 FILENAME_DT_RE = re.compile(r"@(\d{2})-(\d{2})-(\d{4})_(\d{2})-(\d{2})-(\d{2})")
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=str(TEMPLATE_DIR))
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "resource-viewer-secret")
 PAGE_SIZE = max(1, int(os.getenv("RESOURCE_PAGE_SIZE", "120")))
 
@@ -234,6 +253,99 @@ def collect_calendar():
     return years, months_by_year, days_by_ym
 
 
+def scan_timeline_counts():
+    daily = defaultdict(lambda: {"all": 0, "image": 0, "video": 0})
+    monthly = defaultdict(lambda: {"all": 0, "image": 0, "video": 0})
+    yearly = defaultdict(lambda: {"all": 0, "image": 0, "video": 0})
+
+    if not RESULT_DIR.exists():
+        return daily, monthly, yearly
+
+    for root, _, files in os.walk(RESULT_DIR):
+        root_path = Path(root)
+        try:
+            rel_root = root_path.resolve().relative_to(RESULT_DIR)
+        except Exception:
+            continue
+
+        parts = rel_root.parts
+        if len(parts) < 3:
+            continue
+
+        year, month, day = parts[0], parts[1], parts[2]
+        if not (year.isdigit() and month.isdigit() and day.isdigit()):
+            continue
+
+        day_key = f"{year}-{month}-{day}"
+        month_key = f"{year}-{month}"
+        year_key = year
+
+        for file_name in files:
+            kind = media_type_for_ext(Path(file_name).suffix.lower())
+            if kind == "other":
+                continue
+
+            daily[day_key]["all"] += 1
+            daily[day_key][kind] += 1
+            monthly[month_key]["all"] += 1
+            monthly[month_key][kind] += 1
+            yearly[year_key]["all"] += 1
+            yearly[year_key][kind] += 1
+
+    return daily, monthly, yearly
+
+
+def build_chart_series(granularity, media, year_filter="", month_filter="", limit="all"):
+    granularity = (granularity or "daily").lower()
+    media = (media or "all").lower()
+    year_filter = (year_filter or "").strip()
+    month_filter = (month_filter or "").strip()
+    limit = (limit or "all").lower()
+
+    if granularity not in {"daily", "monthly", "annually"}:
+        granularity = "daily"
+    if media not in {"all", "image", "video"}:
+        media = "all"
+    if limit not in {"all", "30", "90", "180", "365"}:
+        limit = "all"
+
+    daily, monthly, yearly = scan_timeline_counts()
+    source = {
+        "daily": daily,
+        "monthly": monthly,
+        "annually": yearly,
+    }[granularity]
+
+    labels = sorted(source.keys())
+    if granularity == "daily" and year_filter:
+        labels = [label for label in labels if label.startswith(f"{year_filter}-")]
+    if granularity == "daily" and month_filter:
+        labels = [label for label in labels if label.startswith(f"{year_filter}-{month_filter}-")]
+    if granularity == "monthly" and year_filter:
+        labels = [label for label in labels if label.startswith(f"{year_filter}-")]
+
+    if limit != "all":
+        labels = labels[-int(limit):]
+
+    points = [{"label": label, "count": source[label][media]} for label in labels]
+    total = sum(point["count"] for point in points)
+    peak = max((point["count"] for point in points), default=0)
+    average = round(total / len(points), 2) if points else 0
+
+    return {
+        "granularity": granularity,
+        "media": media,
+        "year_filter": year_filter,
+        "month_filter": month_filter,
+        "limit": limit,
+        "labels": labels,
+        "points": points,
+        "total": total,
+        "peak": peak,
+        "average": average,
+    }
+
+
 def selected_base_dir(year, month, day):
     if day and month and year:
         return RESULT_DIR / year / month / day
@@ -288,6 +400,159 @@ def list_inbox_candidates():
     return files
 
 
+def detect_local_ip():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "127.0.0.1"
+
+
+def detect_public_ip():
+    try:
+        with urllib.request.urlopen("https://api.ipify.org", timeout=3) as resp:
+            return resp.read().decode("utf-8").strip()
+    except Exception:
+        return "Unavailable"
+
+
+def run_status_window(host, port, debug):
+    import tkinter as tk
+    from tkinter import ttk
+
+    local_ip = detect_local_ip()
+    public_ip = detect_public_ip()
+    localhost_url = f"http://127.0.0.1:{port}"
+    lan_url = f"http://{local_ip}:{port}"
+    bind_label = "0.0.0.0 (all interfaces)" if host == "0.0.0.0" else host
+
+    server = make_server(host, port, app)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    root = tk.Tk()
+    root.title("Cosmos's Galery Manager - Server Status")
+    root.geometry("560x310")
+    root.resizable(False, False)
+    root_mounted = True
+    tray_icon = None
+
+    wrap = ttk.Frame(root, padding=14)
+    wrap.pack(fill="both", expand=True)
+
+    ttk.Label(wrap, text="Cosmos's Galery Manager", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+    ttk.Label(wrap, text="Server is running").pack(anchor="w", pady=(2, 10))
+
+    grid = ttk.Frame(wrap)
+    grid.pack(fill="x", pady=(0, 12))
+
+    def row(label, value):
+        r = ttk.Frame(grid)
+        r.pack(fill="x", pady=2)
+        ttk.Label(r, text=label, width=14).pack(side="left")
+        ttk.Label(r, text=value).pack(side="left")
+
+    row("Bind Host:", bind_label)
+    row("Port:", str(port))
+    row("Local IP:", local_ip)
+    row("Public IP:", public_ip)
+    row("Local URL:", localhost_url)
+    row("LAN URL:", lan_url)
+    row("Debug:", str(debug))
+
+    hint = (
+        "Public access needs router port-forward + firewall allow rule.\n"
+        "Use LAN URL for devices on the same network."
+    )
+    ttk.Label(wrap, text=hint).pack(anchor="w", pady=(0, 12))
+
+    actions = ttk.Frame(wrap)
+    actions.pack(fill="x")
+
+    def open_local():
+        webbrowser.open(localhost_url)
+
+    def open_lan():
+        webbrowser.open(lan_url)
+
+    def show_window():
+        if not root_mounted:
+            return
+        root.after(0, lambda: (root.deiconify(), root.lift(), root.focus_force()))
+
+    def hide_window():
+        if not root_mounted:
+            return
+        root.after(0, root.withdraw)
+
+    def stop_from_tray(icon=None, item=None):
+        stop_server()
+
+    def setup_tray():
+        nonlocal tray_icon
+        if pystray is None:
+            return
+        try:
+            from PIL import Image as PILImage, ImageDraw
+        except Exception:
+            return
+
+        icon_img = PILImage.new("RGBA", (64, 64), (0, 0, 0, 0))
+        d = ImageDraw.Draw(icon_img)
+        d.ellipse((6, 6, 58, 58), fill=(11, 103, 255, 255), outline=(230, 240, 255, 255), width=2)
+        d.rectangle((20, 18, 44, 46), fill=(240, 246, 255, 255))
+        d.rectangle((24, 22, 40, 28), fill=(11, 103, 255, 255))
+        d.rectangle((24, 32, 40, 42), fill=(11, 103, 255, 255))
+
+        tray_icon = pystray.Icon(
+            "cosmos_gallery_manager",
+            icon_img,
+            "Cosmos's Galery Manager",
+            menu=pystray.Menu(
+                pystray.MenuItem("Show Status", lambda icon, item: show_window()),
+                pystray.MenuItem("Hide Status", lambda icon, item: hide_window()),
+                pystray.MenuItem("Open Local", lambda icon, item: open_local()),
+                pystray.MenuItem("Open LAN", lambda icon, item: open_lan()),
+                pystray.MenuItem("Stop Server", stop_from_tray),
+            ),
+        )
+        tray_icon.run_detached()
+
+    def stop_server():
+        nonlocal root_mounted
+        if not root_mounted:
+            return
+        root_mounted = False
+        try:
+            if tray_icon is not None:
+                try:
+                    tray_icon.stop()
+                except Exception:
+                    pass
+            server.shutdown()
+        finally:
+            root.destroy()
+
+    ttk.Button(actions, text="Open Local", command=open_local).pack(side="left", padx=(0, 8))
+    ttk.Button(actions, text="Open LAN", command=open_lan).pack(side="left", padx=(0, 8))
+    ttk.Button(actions, text="Hide", command=hide_window).pack(side="left", padx=(0, 8))
+    ttk.Button(actions, text="Stop Server", command=stop_server).pack(side="right")
+
+    def on_close():
+        if tray_icon is not None:
+            hide_window()
+        else:
+            stop_server()
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
+    setup_tray()
+    root.mainloop()
+
+
 @app.route("/")
 def index():
     q = request.args.get("q", "")
@@ -334,6 +599,44 @@ def index():
         pages=pages,
         page_size=PAGE_SIZE,
         inbox_count=len(list_inbox_candidates()),
+    )
+
+
+@app.route("/stats")
+def stats_view():
+    granularity = request.args.get("granularity", "daily")
+    media = request.args.get("media", "all")
+    year = request.args.get("year", "")
+    month = request.args.get("month", "")
+    limit = request.args.get("limit", "all")
+
+    years, months_by_year, _ = collect_calendar()
+    if year and year not in years:
+        year = ""
+    if month and (not year or month not in months_by_year.get(year, [])):
+        month = ""
+
+    chart_data = build_chart_series(
+        granularity=granularity,
+        media=media,
+        year_filter=year,
+        month_filter=month,
+        limit=limit,
+    )
+
+    return render_template(
+        "resource_stats.html",
+        chart_data=chart_data,
+        years=years,
+        months_by_year=months_by_year,
+        year=year,
+        month=month,
+        granularity=chart_data["granularity"],
+        media=chart_data["media"],
+        limit=chart_data["limit"],
+        pinned_count=len(load_pins()),
+        inbox_count=len(list_inbox_candidates()),
+        result_dir=str(RESULT_DIR),
     )
 
 
@@ -556,4 +859,8 @@ if __name__ == "__main__":
     host = os.getenv("RESOURCE_HOST", "0.0.0.0")
     port = int(os.getenv("RESOURCE_PORT", "5000"))
     debug = os.getenv("RESOURCE_DEBUG", "1").lower() in {"1", "true", "yes", "on"}
-    app.run(host=host, port=port, debug=debug)
+    gui_mode = os.getenv("RESOURCE_GUI", "1").lower() in {"1", "true", "yes", "on"}
+    if getattr(sys, "frozen", False) and gui_mode:
+        run_status_window(host=host, port=port, debug=debug)
+    else:
+        app.run(host=host, port=port, debug=debug)

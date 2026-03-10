@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resource Stats</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --border: #dbe1ed;
+      --text: #1f2937;
+      --muted: #667085;
+      --accent: #0b67ff;
+      --accent-soft: #dce9ff;
+      --line: #e15656;
+      --shadow: 0 10px 30px rgba(18, 31, 53, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 20px; font-family: Segoe UI, Arial, sans-serif; background: linear-gradient(180deg, #eef3ff 0%, var(--bg) 35%, #f7f8fc 100%); color: var(--text); }
+    a { color: var(--accent); text-decoration: none; }
+    .wrap { max-width: 1400px; margin: 0 auto; }
+    .topbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+    .badge { background: var(--accent); color: #fff; padding: 4px 10px; border-radius: 999px; font-size: 12px; }
+    .panel { background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; margin-bottom: 18px; }
+    .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 12px; color: var(--muted); }
+    select, button { border-radius: 10px; border: 1px solid #c9d3e5; padding: 10px 12px; font: inherit; }
+    button { background: #111827; color: #fff; border: none; cursor: pointer; }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .metric { background: linear-gradient(180deg, #fff 0%, #f9fbff 100%); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+    .metric strong { display: block; font-size: 28px; line-height: 1.1; margin-bottom: 4px; }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .charts { display: grid; grid-template-columns: 1fr; gap: 18px; }
+    .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; }
+    .chart-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-bottom: 10px; }
+    .chart-head h3 { margin: 0; font-size: 18px; }
+    .chart-head span { font-size: 12px; color: var(--muted); }
+    .chart-shell { width: 100%; overflow-x: auto; }
+    .empty { padding: 28px; text-align: center; border: 1px dashed var(--border); border-radius: 14px; color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #edf1f7; }
+    th { font-size: 12px; color: var(--muted); }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+    .legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h2 style="margin:0;">Resource Stats</h2>
+      <span class="badge">{{ chart_data.total }} files in current view</span>
+      <a href="{{ url_for('index') }}">Gallery</a>
+      <a href="{{ url_for('pinned') }}">Pinned ({{ pinned_count }})</a>
+      <a href="{{ url_for('upload_resources') }}">Upload</a>
+      <a href="{{ url_for('ingest_resources') }}">Ingest Folder ({{ inbox_count }})</a>
+      <span style="font-size:12px;color:#667085;">Result dir: {{ result_dir }}</span>
+    </div>
+
+    <div class="panel">
+      <form method="get" action="{{ url_for('stats_view') }}" class="filters">
+        <div class="field">
+          <label for="granularity">Aggregation</label>
+          <select id="granularity" name="granularity">
+            <option value="daily" {% if granularity == "daily" %}selected{% endif %}>Daily</option>
+            <option value="monthly" {% if granularity == "monthly" %}selected{% endif %}>Monthly</option>
+            <option value="annually" {% if granularity == "annually" %}selected{% endif %}>Annual</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="media">Media type</label>
+          <select id="media" name="media">
+            <option value="all" {% if media == "all" %}selected{% endif %}>All media</option>
+            <option value="image" {% if media == "image" %}selected{% endif %}>Images</option>
+            <option value="video" {% if media == "video" %}selected{% endif %}>Videos</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="year">Year filter</label>
+          <select id="year" name="year">
+            <option value="">All years</option>
+            {% for y in years %}
+              <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="month">Month filter</label>
+          <select id="month" name="month">
+            <option value="">All months</option>
+            {% if year and months_by_year.get(year) %}
+              {% for m in months_by_year.get(year) %}
+                <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            {% endif %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="limit">Point limit</label>
+          <select id="limit" name="limit">
+            <option value="all" {% if limit == "all" %}selected{% endif %}>All points</option>
+            <option value="30" {% if limit == "30" %}selected{% endif %}>Last 30</option>
+            <option value="90" {% if limit == "90" %}selected{% endif %}>Last 90</option>
+            <option value="180" {% if limit == "180" %}selected{% endif %}>Last 180</option>
+            <option value="365" {% if limit == "365" %}selected{% endif %}>Last 365</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button type="submit">Update charts</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel summary">
+      <div class="metric">
+        <strong>{{ chart_data.total }}</strong>
+        <span>Total files in selected series</span>
+      </div>
+      <div class="metric">
+        <strong>{{ chart_data.points|length }}</strong>
+        <span>Data points</span>
+      </div>
+      <div class="metric">
+        <strong>{{ chart_data.peak }}</strong>
+        <span>Peak file count</span>
+      </div>
+      <div class="metric">
+        <strong>{{ chart_data.average }}</strong>
+        <span>Average per {{ granularity[:-2] if granularity.endswith('ly') else granularity }}</span>
+      </div>
+    </div>
+
+    <div class="charts">
+      <div class="chart-card">
+        <div class="chart-head">
+          <h3>Bar Chart</h3>
+          <span>Counts by {{ granularity }}</span>
+        </div>
+        <div id="barChart" class="chart-shell"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <h3>Line Chart</h3>
+          <span>Trend over time</span>
+        </div>
+        <div id="lineChart" class="chart-shell"></div>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-swatch" style="background:#0b67ff;"></span>Bar series</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#e15656;"></span>Line series</span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <h3>Raw Counts</h3>
+          <span>Directory-derived totals</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th>Files</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for point in chart_data.points %}
+                <tr>
+                  <td>{{ point.label }}</td>
+                  <td>{{ point.count }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="2">No data for this filter combination.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const data = {{ chart_data.points | tojson }};
+      const barHost = document.getElementById("barChart");
+      const lineHost = document.getElementById("lineChart");
+      const yearSelect = document.getElementById("year");
+      const monthSelect = document.getElementById("month");
+      const granularitySelect = document.getElementById("granularity");
+      const monthsByYear = {{ months_by_year | tojson }};
+
+      const syncMonthOptions = () => {
+        const year = yearSelect.value;
+        const current = monthSelect.value;
+        const months = monthsByYear[year] || [];
+        monthSelect.innerHTML = '<option value="">All months</option>';
+        months.forEach((month) => {
+          const option = document.createElement("option");
+          option.value = month;
+          option.textContent = month;
+          if (month === current) option.selected = true;
+          monthSelect.appendChild(option);
+        });
+
+        const daily = granularitySelect.value === "daily";
+        monthSelect.disabled = !daily || !year;
+        if (monthSelect.disabled) {
+          monthSelect.value = "";
+        }
+      };
+
+      const escapeHtml = (value) => String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+
+      const renderEmpty = (host) => {
+        host.innerHTML = '<div class="empty">No points available for the selected filters.</div>';
+      };
+
+      const renderBarChart = () => {
+        if (!data.length) {
+          renderEmpty(barHost);
+          return;
+        }
+
+        const maxValue = Math.max(...data.map((point) => point.count), 1);
+        const barWidth = 38;
+        const gap = 12;
+        const chartHeight = 320;
+        const baseline = 260;
+        const svgWidth = Math.max(760, data.length * (barWidth + gap) + 90);
+        const bars = data.map((point, index) => {
+          const height = Math.max(2, Math.round((point.count / maxValue) * 220));
+          const x = 50 + index * (barWidth + gap);
+          const y = baseline - height;
+          return `
+            <g>
+              <title>${escapeHtml(point.label)}: ${point.count} files</title>
+              <rect x="${x}" y="${y}" width="${barWidth}" height="${height}" rx="8" fill="#0b67ff"></rect>
+              <text x="${x + (barWidth / 2)}" y="${y - 8}" text-anchor="middle" font-size="11" fill="#334155">${point.count}</text>
+              <text x="${x + (barWidth / 2)}" y="${baseline + 18}" text-anchor="end" transform="rotate(-38 ${x + (barWidth / 2)} ${baseline + 18})" font-size="11" fill="#667085">${escapeHtml(point.label)}</text>
+            </g>
+          `;
+        }).join("");
+
+        barHost.innerHTML = `
+          <svg width="${svgWidth}" height="${chartHeight}" viewBox="0 0 ${svgWidth} ${chartHeight}" role="img" aria-label="Bar chart of file counts">
+            <line x1="40" y1="${baseline}" x2="${svgWidth - 20}" y2="${baseline}" stroke="#cbd5e1" />
+            <line x1="40" y1="20" x2="40" y2="${baseline}" stroke="#cbd5e1" />
+            ${bars}
+          </svg>
+        `;
+      };
+
+      const renderLineChart = () => {
+        if (!data.length) {
+          renderEmpty(lineHost);
+          return;
+        }
+
+        const width = Math.max(760, data.length * 68);
+        const height = 320;
+        const left = 42;
+        const bottom = 270;
+        const top = 24;
+        const usableWidth = width - left - 24;
+        const usableHeight = bottom - top;
+        const maxValue = Math.max(...data.map((point) => point.count), 1);
+        const step = data.length > 1 ? usableWidth / (data.length - 1) : usableWidth / 2;
+
+        const coords = data.map((point, index) => {
+          const x = left + (data.length > 1 ? index * step : usableWidth / 2);
+          const y = bottom - ((point.count / maxValue) * usableHeight);
+          return { x, y, label: point.label, count: point.count };
+        });
+
+        const path = coords.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+        const nodes = coords.map((point) => `
+          <g>
+            <title>${escapeHtml(point.label)}: ${point.count} files</title>
+            <circle cx="${point.x}" cy="${point.y}" r="4.5" fill="#e15656"></circle>
+            <text x="${point.x}" y="${bottom + 18}" text-anchor="end" transform="rotate(-38 ${point.x} ${bottom + 18})" font-size="11" fill="#667085">${escapeHtml(point.label)}</text>
+          </g>
+        `).join("");
+
+        lineHost.innerHTML = `
+          <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Line chart of file counts">
+            <line x1="${left}" y1="${bottom}" x2="${width - 12}" y2="${bottom}" stroke="#cbd5e1" />
+            <line x1="${left}" y1="${top}" x2="${left}" y2="${bottom}" stroke="#cbd5e1" />
+            <path d="${path}" fill="none" stroke="#e15656" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+            ${nodes}
+          </svg>
+        `;
+      };
+
+      yearSelect.addEventListener("change", syncMonthOptions);
+      granularitySelect.addEventListener("change", syncMonthOptions);
+      syncMonthOptions();
+      renderBarChart();
+      renderLineChart();
+    })();
+  </script>
+</body>
+</html>
