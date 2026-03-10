@@ -181,6 +181,28 @@ def scan_resources(base_dir):
                 resources = lookup_cache_by_dir[dir_key].get("resources", {})
                 candidate = resources.get(p.name) if isinstance(resources, dict) else None
                 if isinstance(candidate, dict):
+                    result_data = candidate.get("result")
+                    fetched_at_raw = candidate.get("fetched_at")
+                    fetched_at = None
+                    if fetched_at_raw:
+                        try:
+                            fetched_at = dt.datetime.fromisoformat(str(fetched_at_raw))
+                        except ValueError:
+                            fetched_at = None
+
+                    is_short_limit = isinstance(result_data, dict) and result_data.get("error") == "ShortLimitReached"
+                    is_stale = fetched_at is not None and fetched_at <= (dt.datetime.now() - dt.timedelta(days=1))
+                    if is_short_limit and is_stale:
+                        refreshed_payload, refreshed_status = lookup_service.get_or_update_lookup_data(
+                            safe_rel_path(p),
+                            force=True,
+                        )
+                        if refreshed_status == 200 and refreshed_payload.get("ok"):
+                            refreshed_resource = refreshed_payload.get("data")
+                            if isinstance(refreshed_resource, dict):
+                                resources[p.name] = refreshed_resource
+                                candidate = refreshed_resource
+
                     if not isinstance(candidate.get("summary"), dict):
                         candidate["summary"] = lookup_service.summarize_resource(candidate)
                     cached_lookup = candidate
@@ -899,21 +921,39 @@ def reverse_search_batch_route():
     fetched = 0
     skipped = 0
     failed = 0
+    aborted_short_limit = False
 
-    for item in image_items:
-        payload, status = lookup_service.get_or_update_lookup_data(item["rel_path"], force=False)
+    for index, item in enumerate(image_items):
+        cached_lookup = lookup_service.cached_resource_data(Path(item["abs_path"]))
+        should_force = (
+            isinstance(cached_lookup, dict)
+            and isinstance(cached_lookup.get("result"), dict)
+            and cached_lookup["result"].get("error") == "ShortLimitReached"
+        )
+        payload, status = lookup_service.get_or_update_lookup_data(item["rel_path"], force=should_force)
         if status != 200 or not payload.get("ok"):
             failed += 1
             continue
+        result_data = payload.get("data", {}).get("result")
+        if isinstance(result_data, dict) and result_data.get("error") == "ShortLimitReached":
+            failed += len(image_items) - index
+            aborted_short_limit = True
+            break
         if payload.get("cached"):
             skipped += 1
         else:
             fetched += 1
 
-    flash(
-        f"Reverse-search batch complete. Matching images: {len(image_items)}. "
-        f"Fetched missing: {fetched}. Already cached: {skipped}. Failed: {failed}."
-    )
+    if aborted_short_limit:
+        flash(
+            f"Reverse-search batch stopped on ShortLimitReached. Matching images: {len(image_items)}. "
+            f"Fetched missing: {fetched}. Already cached: {skipped}. Failed: {failed}."
+        )
+    else:
+        flash(
+            f"Reverse-search batch complete. Matching images: {len(image_items)}. "
+            f"Fetched missing: {fetched}. Already cached: {skipped}. Failed: {failed}."
+        )
     return redirect(url_for("index", q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page))
 
 
