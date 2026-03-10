@@ -572,7 +572,7 @@
           toggleFullscreen();
           return;
         }
-        if (key === " " || key === "k") {
+        if (key === " " || key === "k" || key === "r") {
           event.preventDefault();
           togglePlayPause();
           return;
@@ -582,12 +582,12 @@
           if (hasActiveVideo()) modalVideo.muted = !modalVideo.muted;
           return;
         }
-        if (key === "l") {
+        if (key === "l" || key === "e") {
           event.preventDefault();
           if (hasActiveVideo()) modalVideo.currentTime = Math.min(modalVideo.duration || 0, modalVideo.currentTime + 10);
           return;
         }
-        if (key === "j") {
+        if (key === "j" || key === "q") {
           event.preventDefault();
           if (hasActiveVideo()) modalVideo.currentTime = Math.max(0, modalVideo.currentTime - 10);
           return;
