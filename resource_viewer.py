@@ -11,9 +11,14 @@ import webbrowser
 from collections import defaultdict
 from pathlib import Path
 
+from env_loader import load_env_file
 from flask import Flask, flash, jsonify, redirect, render_template, request, send_file, url_for
 from werkzeug.serving import make_server
 from werkzeug.utils import secure_filename
+
+load_env_file()
+
+from resource_lookup import ReverseSearchService
 
 try:
     import pystray
@@ -130,11 +135,19 @@ def safe_rel_path(abs_path):
         return None
 
 
+lookup_service = ReverseSearchService(
+    result_dir=RESULT_DIR,
+    media_type_for_ext=media_type_for_ext,
+    safe_rel_path=safe_rel_path,
+)
+
+
 def scan_resources(base_dir):
     if not base_dir.exists():
         return []
 
     items = []
+    lookup_cache_by_dir = {}
     for root, _, files in os.walk(base_dir):
         for file_name in files:
             p = Path(root) / file_name
@@ -160,6 +173,18 @@ def scan_resources(base_dir):
                 if parsed_dt
                 else dt.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
             )
+            cached_lookup = None
+            if kind == "image":
+                dir_key = str(p.parent.resolve())
+                if dir_key not in lookup_cache_by_dir:
+                    lookup_cache_by_dir[dir_key] = lookup_service.load_dir_lookup_cache(p)
+                resources = lookup_cache_by_dir[dir_key].get("resources", {})
+                candidate = resources.get(p.name) if isinstance(resources, dict) else None
+                if isinstance(candidate, dict):
+                    if not isinstance(candidate.get("summary"), dict):
+                        candidate["summary"] = lookup_service.summarize_resource(candidate)
+                    cached_lookup = candidate
+            lookup_summary = cached_lookup.get("summary") if isinstance(cached_lookup, dict) else {}
 
             items.append(
                 {
@@ -173,6 +198,9 @@ def scan_resources(base_dir):
                     "display_dt": display_dt,
                     "sort_ts": sort_ts,
                     "size_bytes": stat.st_size,
+                    "lookup_summary": lookup_summary,
+                    "up_score": lookup_summary.get("up_score") or 0,
+                    "down_score": lookup_summary.get("down_score") or 0,
                 }
             )
     return items
@@ -218,6 +246,14 @@ def apply_sort(items, sort_order):
         items.sort(key=lambda x: (x["kind"], x["name"].lower(), x["sort_ts"]))
     elif mode == "type_desc":
         items.sort(key=lambda x: (x["kind"], x["name"].lower(), x["sort_ts"]), reverse=True)
+    elif mode == "up_score_desc":
+        items.sort(key=lambda x: (x.get("up_score", 0), x["sort_ts"]), reverse=True)
+    elif mode == "up_score_asc":
+        items.sort(key=lambda x: (x.get("up_score", 0), x["sort_ts"]))
+    elif mode == "down_score_desc":
+        items.sort(key=lambda x: (x.get("down_score", 0), x["sort_ts"]), reverse=True)
+    elif mode == "down_score_asc":
+        items.sort(key=lambda x: (x.get("down_score", 0), x["sort_ts"]))
     else:
         mode = "date_desc"
         items.sort(key=lambda x: (x["sort_ts"], x["name"].lower()), reverse=True)
@@ -354,6 +390,14 @@ def selected_base_dir(year, month, day):
     if year:
         return RESULT_DIR / year
     return None
+
+
+def filtered_scope_items(year, month, day, q, media):
+    base_dir = selected_base_dir(year, month, day)
+    if not base_dir:
+        return None, []
+    items = scan_resources(base_dir)
+    return base_dir, apply_filters(items, q, media)
 
 
 def paginate(items, page, page_size):
@@ -568,9 +612,7 @@ def index():
 
     years, months_by_year, days_by_ym = collect_calendar()
 
-    base_dir = selected_base_dir(year, month, day)
-    items = scan_resources(base_dir) if base_dir else []
-    filtered = apply_filters(items, q, media)
+    base_dir, filtered = filtered_scope_items(year, month, day, q, media)
 
     sort_order = apply_sort(filtered, sort_order)
     page_items, total, page, pages = paginate(filtered, page, PAGE_SIZE)
@@ -599,6 +641,7 @@ def index():
         pages=pages,
         page_size=PAGE_SIZE,
         inbox_count=len(list_inbox_candidates()),
+        reverse_ui_config=lookup_service.ui_config,
     )
 
 
@@ -828,13 +871,56 @@ def delete_file():
     return jsonify({"ok": True, "message": "File deleted", "rel_path": str(safe_path).replace("\\", "/")})
 
 
+@app.post("/reverse-search")
+def reverse_search_route():
+    data = request.get_json(silent=True) or {}
+    rel_path = data.get("rel_path") or request.form.get("rel_path", "")
+    force = str(data.get("force") or request.form.get("force") or "").lower() in {"1", "true", "yes", "on"}
+    payload, status = lookup_service.get_or_update_lookup_data(rel_path, force=force)
+    return jsonify(payload), status
+
+
+@app.post("/reverse-search/batch")
+def reverse_search_batch_route():
+    q = request.form.get("q", "")
+    year = request.form.get("year", "")
+    month = request.form.get("month", "")
+    day = request.form.get("day", "")
+    media = request.form.get("media", "all")
+    sort_order = request.form.get("sort", "date_desc")
+    page = request.form.get("page", "1")
+
+    base_dir, filtered = filtered_scope_items(year, month, day, q, media)
+    if base_dir is None:
+        flash("Pick a year or month before fetching missing reverse-search data.")
+        return redirect(url_for("index", q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page))
+
+    image_items = [item for item in filtered if item["kind"] == "image"]
+    fetched = 0
+    skipped = 0
+    failed = 0
+
+    for item in image_items:
+        payload, status = lookup_service.get_or_update_lookup_data(item["rel_path"], force=False)
+        if status != 200 or not payload.get("ok"):
+            failed += 1
+            continue
+        if payload.get("cached"):
+            skipped += 1
+        else:
+            fetched += 1
+
+    flash(
+        f"Reverse-search batch complete. Matching images: {len(image_items)}. "
+        f"Fetched missing: {fetched}. Already cached: {skipped}. Failed: {failed}."
+    )
+    return redirect(url_for("index", q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page))
+
+
 @app.route("/media/<path:rel_path>")
 def media(rel_path):
-    safe_path = Path(rel_path)
-    abs_path = (RESULT_DIR / safe_path).resolve()
-    try:
-        abs_path.relative_to(RESULT_DIR)
-    except ValueError:
+    abs_path = lookup_service.resolve_media_path(rel_path)
+    if abs_path is None:
         return "Invalid path", 400
     if not abs_path.exists():
         return "Not found", 404
@@ -843,11 +929,8 @@ def media(rel_path):
 
 @app.route("/download/<path:rel_path>")
 def download(rel_path):
-    safe_path = Path(rel_path)
-    abs_path = (RESULT_DIR / safe_path).resolve()
-    try:
-        abs_path.relative_to(RESULT_DIR)
-    except ValueError:
+    abs_path = lookup_service.resolve_media_path(rel_path)
+    if abs_path is None:
         return "Invalid path", 400
     if not abs_path.exists():
         return "Not found", 404

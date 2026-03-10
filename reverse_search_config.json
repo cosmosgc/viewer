@@ -1,0 +1,50 @@
+{
+  "sidebar_open_by_default": true,
+  "show_raw_data_by_default": false,
+  "show_raw_toggle": true,
+  "field_styles": {
+    "match_score": { "background": "#1f314f", "border": "#426ca8", "text": "#dce9ff" },
+    "up_score": { "background": "#143026", "border": "#2f7d62", "text": "#d5ffe9" },
+    "down_score": { "background": "#3b1c22", "border": "#a44658", "text": "#ffd8df" },
+    "rating": { "background": "#35280f", "border": "#9a7524", "text": "#ffe5a6" },
+    "artist": { "background": "#372414", "border": "#b36f28", "text": "#ffe3c2" },
+    "character": { "background": "#231f3d", "border": "#655fd2", "text": "#e3ddff" },
+    "copyright": { "background": "#1d2d39", "border": "#4d88a8", "text": "#d7f1ff" },
+    "species": { "background": "#203322", "border": "#4d8c4f", "text": "#dcffdf" },
+    "general": { "background": "#252525", "border": "#5a5a5a", "text": "#f0f0f0" },
+    "meta": { "background": "#2f2438", "border": "#7a57a0", "text": "#f0ddff" },
+    "lore": { "background": "#2e2519", "border": "#8f6840", "text": "#fbe6ce" }
+  },
+  "tag_styles": {
+    "artist": {
+      "keywords": ["artist", "artwork", "digital_media_(artwork)"],
+      "background": "#372414",
+      "border": "#b36f28",
+      "text": "#ffe3c2"
+    },
+    "character": {
+      "keywords": ["tristana", "teemo", "character"],
+      "background": "#231f3d",
+      "border": "#655fd2",
+      "text": "#e3ddff"
+    },
+    "copyright": {
+      "keywords": ["league_of_legends", "riot_games", "tencent"],
+      "background": "#1d2d39",
+      "border": "#4d88a8",
+      "text": "#d7f1ff"
+    },
+    "species": {
+      "keywords": ["yordle", "humanoid"],
+      "background": "#203322",
+      "border": "#4d8c4f",
+      "text": "#dcffdf"
+    },
+    "meta": {
+      "keywords": ["hi_res", "absurd_res", "close-up", "solo"],
+      "background": "#2f2438",
+      "border": "#7a57a0",
+      "text": "#f0ddff"
+    }
+  }
+}
