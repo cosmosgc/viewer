@@ -4,3 +4,4 @@ templates/s.js
 dist
 build
 .env
+reverse_search_config.json

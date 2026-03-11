@@ -171,7 +171,7 @@
   </form>
 
   <div class="navbox">
-    <strong>Browse by year/month</strong>
+    <strong>Browse by folder/month</strong>
     <div class="navrow">
       {% for y in years %}
         <a class="pill" href="{{ url_for('index', year=y, media=media, sort=sort_order) }}">{{ y }}</a>
@@ -231,8 +231,12 @@
         </div>
         <div class="actions">
           <a href="{{ url_for('download', rel_path=item.rel_path) }}">Save file</a>
-          <a href="{{ url_for('day_view', year=item.year, month=item.month, day=item.day) }}">Open day</a>
-          <a href="{{ url_for('month_view', year=item.year, month=item.month) }}">Open month</a>
+          {% if item.year and item.month and item.day %}
+            <a href="{{ url_for('day_view', year=item.year, month=item.month, day=item.day) }}">Open day</a>
+          {% endif %}
+          {% if item.year and item.month %}
+            <a href="{{ url_for('month_view', year=item.year, month=item.month) }}">Open month</a>
+          {% endif %}
           <form method="post" action="{{ url_for('pin_toggle') }}">
             <input type="hidden" name="abs_path" value="{{ item.abs_path }}">
             <input type="hidden" name="back" value="{{ request.full_path }}">
