@@ -85,6 +85,7 @@ def scan_resources(base_dir):
                 else dt.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
             )
             cached_lookup = None
+            has_lookup_data = False
             if kind == "image":
                 dir_key = str(p.parent.resolve())
                 if dir_key not in lookup_cache_by_dir:
@@ -117,6 +118,8 @@ def scan_resources(base_dir):
                     if not isinstance(candidate.get("summary"), dict):
                         candidate["summary"] = lookup_service.summarize_resource(candidate)
                     cached_lookup = candidate
+                    result_data = candidate.get("result")
+                    has_lookup_data = not (isinstance(result_data, dict) and result_data.get("error"))
             lookup_summary = cached_lookup.get("summary") if isinstance(cached_lookup, dict) else {}
 
             items.append(
@@ -132,6 +135,7 @@ def scan_resources(base_dir):
                     "sort_ts": sort_ts,
                     "size_bytes": stat.st_size,
                     "lookup_summary": lookup_summary,
+                    "has_lookup_data": has_lookup_data,
                     "up_score": lookup_summary.get("up_score") or 0,
                     "down_score": lookup_summary.get("down_score") or 0,
                 }
