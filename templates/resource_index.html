@@ -6,6 +6,7 @@
   <title>Resource Viewer</title>
   <style>
     body { font-family: Segoe UI, Arial, sans-serif; margin: 20px; background: #f5f6fa; color: #222; }
+    body.modal-open { overflow: hidden; }
     .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
     .badge { background: #0b67ff; color: #fff; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
     form.filters { background: #fff; border: 1px solid #ddd; padding: 12px; border-radius: 10px; margin-bottom: 16px; }
@@ -33,15 +34,15 @@
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); display: none; align-items: center; justify-content: center; z-index: 9999; }
     .modal-backdrop.open { display: flex; }
     .modal-shell { width: min(97vw, 1520px); height: 94vh; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; overflow: hidden; }
-    .modal-top { display: flex; justify-content: space-between; align-items: center; color: #fff; font-size: 13px; }
-    .modal-controls { display: flex; gap: 8px; }
+    .modal-top { display: flex; justify-content: space-between; align-items: center; color: #fff; font-size: 13px; gap: 12px; }
+    .modal-controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
     .modal-toggle { display: inline-flex; align-items: center; gap: 5px; color: #ddd; font-size: 12px; }
     .modal-btn { border: 1px solid #666; background: rgba(20, 20, 20, 0.7); color: #fff; border-radius: 7px; padding: 6px 10px; cursor: pointer; }
     .modal-body { min-height: 0; display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); gap: 12px; }
     .modal-shell.sidebar-collapsed .modal-body { grid-template-columns: 0 minmax(0, 1fr); }
     .modal-sidebar { min-height: 0; overflow: auto; border-radius: 12px; border: 1px solid #253044; background: rgba(9, 14, 22, 0.95); padding: 12px; color: #e8eefc; }
     .modal-shell.sidebar-collapsed .modal-sidebar { overflow: hidden; padding: 0; border-width: 0; opacity: 0; }
-    .modal-stage { display: grid; place-items: center; min-width: 0; min-height: 0; overflow: hidden; }
+    .modal-stage { display: grid; place-items: center; min-width: 0; min-height: 0; overflow: hidden; position: relative; touch-action: auto; user-select: none; -webkit-user-select: none; }
     .modal-image, .modal-video { min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; border-radius: 10px; background: #111; }
     .modal-video { width: 100%; height: 100%; object-fit: contain; }
     .modal-bottom { color: #ddd; font-size: 12px; display: grid; gap: 10px; }
@@ -58,6 +59,8 @@
     .meta-tag-res { background: #261f1a; border-color: #4f3d30; color: #ffe6d4; }
     .meta-tag-dur { background: #1f1f1f; border-color: #474747; color: #f1f1f1; }
     .modal-hint { color: #b7b7b7; font-size: 11px; }
+    .mobile-hint { display: none; }
+    .modal-stage.swipe-active { cursor: grabbing; }
     .modal-overlay-msg { position: absolute; inset: 0; display: none; place-items: center; background: rgba(0, 0, 0, 0.58); color: #fff; font-size: 18px; font-weight: 700; text-align: center; padding: 20px; }
     .modal-stage.has-overlay .modal-overlay-msg { display: grid; }
     .modal-toast { position: absolute; left: 50%; transform: translateX(-50%); bottom: 18px; background: rgba(20, 20, 20, 0.88); color: #fff; border: 1px solid #666; border-radius: 8px; padding: 7px 11px; font-size: 12px; display: none; }
@@ -79,10 +82,37 @@
     .reverse-pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: Consolas, "Courier New", monospace; font-size: 11px; color: #e7eefc; }
     .reverse-empty { color: #93a3bf; }
     @media (max-width: 920px) {
+      body { margin: 12px; }
+      form.filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      form.filters input,
+      form.filters select,
+      form.filters button { margin-right: 0; width: 100%; min-height: 42px; }
+      form.filters a { align-self: center; }
+      .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+      .preview { height: 150px; }
+      .actions a, .actions button { min-height: 38px; }
+      .modal-backdrop { align-items: stretch; }
+      .modal-shell { width: 100vw; height: 100dvh; border-radius: 0; padding: 10px; gap: 8px; }
+      .modal-top { align-items: flex-start; flex-direction: column; }
+      .modal-controls { width: 100%; justify-content: flex-start; }
+      .modal-btn { min-height: 40px; }
       .modal-body { grid-template-columns: 1fr; }
       .modal-shell.sidebar-collapsed .modal-body { grid-template-columns: 1fr; }
       .modal-sidebar { max-height: 34vh; }
       .modal-shell.sidebar-collapsed .modal-sidebar { max-height: 0; }
+      .modal-stage { border-radius: 12px; background: rgba(9, 14, 22, 0.7); }
+      .meta-tag-path .meta-tag-value { max-width: 72vw; }
+      .mobile-hint { display: inline; }
+    }
+    @media (max-width: 640px) {
+      form.filters { grid-template-columns: 1fr; }
+      .topbar { gap: 8px; }
+      .navbox, form.filters { padding: 10px; }
+      .modal-shell { padding: 8px; }
+      .modal-controls { gap: 6px; }
+      .modal-btn, .modal-toggle { font-size: 11px; }
+      .modal-hint { font-size: 10px; }
+      .modal-sidebar { max-height: 40vh; }
     }
   </style>
 </head>
@@ -270,7 +300,7 @@
       <div class="modal-top">
         <div>
           <div id="modalCounter"></div>
-          <div class="modal-hint">Keys: A/D or ←/→ next-prev, F fullscreen, Space play/pause, M mute, Delete remove</div>
+          <div class="modal-hint"><span class="mobile-hint">Swipe left/right, tap outside to close. </span>Keys: A/D or ←/→ next-prev, F fullscreen, Space play/pause, M mute, Delete remove</div>
         </div>
         <div class="modal-controls">
           <label class="modal-toggle" for="modalAutoplay">
@@ -399,8 +429,12 @@
 
       let current = 0;
       let open = false;
+      let swipeState = null;
       const prevPageUrl = "{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page-1) if page > 1 else '' }}";
       const nextPageUrl = "{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page+1) if page < pages else '' }}";
+      const SWIPE_MIN_X = 48;
+      const SWIPE_MAX_Y = 90;
+      const SWIPE_LOCK_DELTA = 14;
 
       const applySidebarState = () => {
         modalShell.classList.toggle("sidebar-collapsed", !sidebarOpen);
@@ -685,6 +719,7 @@
         current = index;
         open = true;
         modal.classList.add("open");
+        document.body.classList.add("modal-open");
         modal.setAttribute("aria-hidden", "false");
         applySidebarState();
         render();
@@ -692,10 +727,13 @@
 
       const closeModal = () => {
         open = false;
+        swipeState = null;
         modal.classList.remove("open");
+        document.body.classList.remove("modal-open");
         modal.setAttribute("aria-hidden", "true");
         modalVideo.pause();
         modalStage.classList.remove("has-overlay");
+        modalStage.classList.remove("swipe-active");
         modalToast.style.display = "none";
         if (document.fullscreenElement) {
           document.exitFullscreen().catch(() => {});
@@ -772,6 +810,86 @@
         try { await target.requestFullscreen(); } catch (_) {}
       };
 
+      const isInteractiveTouchTarget = (target) => {
+        return !!(target && target.closest("button, a, input, label, video, .modal-sidebar, .reverse-panel"));
+      };
+
+      const resetSwipeState = () => {
+        swipeState = null;
+        modalStage.classList.remove("swipe-active");
+      };
+
+      const isViewportZoomed = () => {
+        const viewport = window.visualViewport;
+        return !!(viewport && Number.isFinite(viewport.scale) && viewport.scale > 1.01);
+      };
+
+      const handleTouchStart = (event) => {
+        if (!open || isViewportZoomed() || event.touches.length > 1) {
+          resetSwipeState();
+          return;
+        }
+        if (event.touches.length !== 1 || isInteractiveTouchTarget(event.target)) {
+          resetSwipeState();
+          return;
+        }
+        const touch = event.touches[0];
+        swipeState = {
+          startX: touch.clientX,
+          startY: touch.clientY,
+          axis: null,
+          active: true
+        };
+      };
+
+      const handleTouchMove = (event) => {
+        if (isViewportZoomed() || event.touches.length > 1) {
+          resetSwipeState();
+          return;
+        }
+        if (!swipeState || !swipeState.active || event.touches.length !== 1) return;
+        const touch = event.touches[0];
+        const dx = touch.clientX - swipeState.startX;
+        const dy = touch.clientY - swipeState.startY;
+        if (!swipeState.axis) {
+          if (Math.abs(dx) < SWIPE_LOCK_DELTA && Math.abs(dy) < SWIPE_LOCK_DELTA) return;
+          swipeState.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        }
+        if (swipeState.axis === "x") {
+          modalStage.classList.add("swipe-active");
+          event.preventDefault();
+        } else {
+          resetSwipeState();
+        }
+      };
+
+      const handleTouchEnd = (event) => {
+        if (isViewportZoomed()) {
+          resetSwipeState();
+          return;
+        }
+        if (!swipeState || !swipeState.active) {
+          resetSwipeState();
+          return;
+        }
+        const touch = event.changedTouches && event.changedTouches[0];
+        if (!touch) {
+          resetSwipeState();
+          return;
+        }
+        const dx = touch.clientX - swipeState.startX;
+        const dy = touch.clientY - swipeState.startY;
+        const horizontalSwipe = Math.abs(dx) >= SWIPE_MIN_X && Math.abs(dy) <= SWIPE_MAX_Y;
+        if (swipeState.axis === "x" && horizontalSwipe) {
+          if (dx < 0) {
+            next();
+          } else {
+            prev();
+          }
+        }
+        resetSwipeState();
+      };
+
       triggers.forEach((el) => {
         el.addEventListener("click", () => openModal(Number(el.dataset.index)));
       });
@@ -806,6 +924,10 @@
       modal.addEventListener("click", (event) => {
         if (event.target === modal) closeModal();
       });
+      modalStage.addEventListener("touchstart", handleTouchStart, { passive: true });
+      modalStage.addEventListener("touchmove", handleTouchMove, { passive: false });
+      modalStage.addEventListener("touchend", handleTouchEnd, { passive: true });
+      modalStage.addEventListener("touchcancel", resetSwipeState, { passive: true });
 
       window.addEventListener("keydown", (event) => {
         const t = event.target;
