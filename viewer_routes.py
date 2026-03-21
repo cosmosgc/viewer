@@ -311,9 +311,9 @@ def register_routes(flask_app):
         fetched = 0
         skipped = 0
         failed = 0
-        aborted_short_limit = False
+        rate_limited = 0
 
-        for index, item in enumerate(image_items):
+        for item in image_items:
             cached_lookup = lookup_service.cached_resource_data(Path(item["abs_path"]))
             should_force = (
                 isinstance(cached_lookup, dict)
@@ -326,24 +326,21 @@ def register_routes(flask_app):
                 continue
             result_data = payload.get("data", {}).get("result")
             if isinstance(result_data, dict) and result_data.get("error") == "ShortLimitReached":
-                failed += len(image_items) - index
-                aborted_short_limit = True
-                break
+                rate_limited += 1
+                failed += 1
+                continue
             if payload.get("cached"):
                 skipped += 1
             else:
                 fetched += 1
 
-        if aborted_short_limit:
-            flash(
-                f"Reverse-search batch stopped on ShortLimitReached. Matching images: {len(image_items)}. "
-                f"Fetched missing: {fetched}. Already cached: {skipped}. Failed: {failed}."
-            )
-        else:
-            flash(
-                f"Reverse-search batch complete. Matching images: {len(image_items)}. "
-                f"Fetched missing: {fetched}. Already cached: {skipped}. Failed: {failed}."
-            )
+        message = (
+            f"Reverse-search batch complete. Matching images: {len(image_items)}. "
+            f"Fetched missing: {fetched}. Already cached: {skipped}. Failed: {failed}."
+        )
+        if rate_limited:
+            message += f" ShortLimitReached responses: {rate_limited}."
+        flash(message)
         return redirect(url_for("index", q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page))
 
     @flask_app.route("/media/<path:rel_path>")

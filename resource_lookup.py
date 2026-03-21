@@ -2,6 +2,8 @@ import datetime as dt
 import json
 import mimetypes
 import os
+import threading
+import time
 import urllib.request
 import uuid
 from base64 import b64encode
@@ -27,6 +29,9 @@ class ReverseSearchService:
             "CosmosGalleryManager/1.0 (by Codex integration)",
         ).strip()
         self.timeout = max(5, int(os.getenv("RESOURCE_E621_TIMEOUT", "25")))
+        self.min_interval_seconds = max(0.0, float(os.getenv("RESOURCE_E621_MIN_INTERVAL_SECONDS", "1")))
+        self._request_spacing_lock = threading.Lock()
+        self._last_request_completed_at = None
         self.ui_config = self.load_ui_config()
 
     def load_ui_config(self):
@@ -195,6 +200,25 @@ class ReverseSearchService:
 
         return boundary, bytes(body)
 
+    def acquire_request_slot(self):
+        if self.min_interval_seconds <= 0:
+            return
+        self._request_spacing_lock.acquire()
+        now = time.monotonic()
+        if self._last_request_completed_at is not None:
+            elapsed = now - self._last_request_completed_at
+            remaining = self.min_interval_seconds - elapsed
+            if remaining > 0:
+                time.sleep(remaining)
+
+    def release_request_slot(self):
+        if self.min_interval_seconds <= 0:
+            return
+        try:
+            self._last_request_completed_at = time.monotonic()
+        finally:
+            self._request_spacing_lock.release()
+
     def reverse_search_image(self, image_path):
         if not self.login or not self.api_key:
             return {"error": "Authentication required. Set E621_LOGIN and E621_API_KEY."}
@@ -212,6 +236,7 @@ class ReverseSearchService:
         }
         req = urllib.request.Request(self.iqdb_url, data=body, headers=headers, method="POST")
 
+        self.acquire_request_slot()
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 raw_output = resp.read().decode("utf-8", errors="replace")
@@ -223,6 +248,8 @@ class ReverseSearchService:
             return {"error": f"Request failed: {exc.reason}"}
         except Exception as exc:
             return {"error": f"Request failed: {exc}"}
+        finally:
+            self.release_request_slot()
 
         try:
             parsed = json.loads(raw_output)
@@ -230,7 +257,12 @@ class ReverseSearchService:
             parsed = None
 
         if http_status == 429:
-            return {"error": "ShortLimitReached", "http_status": http_status}
+            return {
+                "error": "ShortLimitReached",
+                "message": "Reverse search short-period rate limit reached.",
+                "retry_after_seconds": self.min_interval_seconds,
+                "http_status": http_status,
+            }
         if not raw_output:
             return {"error": "EmptyResult", "http_status": http_status}
         if isinstance(parsed, dict) and parsed.get("message"):
