@@ -1,0 +1,18 @@
+{% macro reverse_lookup_panel(prefix='reverse', hidden=False, extra_class='') -%}
+<div
+  id="{{ prefix }}Panel"
+  class="reverse-panel{% if extra_class %} {{ extra_class }}{% endif %}"
+  {% if hidden %}style="display:none;"{% endif %}
+>
+  <div class="reverse-head">
+    <div class="reverse-title">Reverse Search</div>
+    <div class="reverse-actions">
+      <span id="{{ prefix }}Status" class="reverse-status"></span>
+      <button id="{{ prefix }}RawToggle" type="button" class="reverse-btn">Show raw</button>
+      <button id="{{ prefix }}Refresh" type="button" class="reverse-btn">Update</button>
+    </div>
+  </div>
+  <div id="{{ prefix }}Summary" class="reverse-summary"></div>
+  <pre id="{{ prefix }}Content" class="reverse-pre" style="display:none;"></pre>
+</div>
+{%- endmacro %}

@@ -1,0 +1,176 @@
+.meta-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.meta-tag {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  max-width: 100%;
+}
+
+.meta-tag-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
+}
+
+.meta-tag-value {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta-tag-name {
+  background: #1d2433;
+  border-color: #2b3a58;
+  color: #e8f0ff;
+}
+
+.meta-tag-path {
+  background: #1a2a23;
+  border-color: #2c4a3d;
+  color: #d8ffe9;
+  max-width: 100%;
+}
+
+.meta-tag-size {
+  background: #2a2318;
+  border-color: #50402b;
+  color: #ffe9c7;
+}
+
+.meta-tag-date {
+  background: #2a1f2f;
+  border-color: #4a3655;
+  color: #f4dcff;
+}
+
+.meta-tag-kind {
+  background: #18292b;
+  border-color: #2a4d50;
+  color: #d8fdff;
+}
+
+.meta-tag-res {
+  background: #261f1a;
+  border-color: #4f3d30;
+  color: #ffe6d4;
+}
+
+.meta-tag-dur {
+  background: #1f1f1f;
+  border-color: #474747;
+  color: #f1f1f1;
+}
+
+.reverse-panel {
+  border: 1px solid #333d4d;
+  border-radius: 10px;
+  background: rgba(14, 19, 30, 0.78);
+  padding: 10px;
+}
+
+.reverse-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.reverse-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9eb4d9;
+}
+
+.reverse-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.reverse-status {
+  color: #c7d3e8;
+  font-size: 12px;
+}
+
+.reverse-btn {
+  border: 1px solid #4d6288;
+  background: #13213b;
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.reverse-btn[disabled] {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.reverse-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.reverse-link {
+  color: #9ec5ff;
+}
+
+.reverse-section {
+  display: grid;
+  gap: 8px;
+}
+
+.reverse-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8ba0c4;
+}
+
+.reverse-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reverse-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+}
+
+.reverse-group {
+  display: grid;
+  gap: 6px;
+}
+
+.reverse-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  color: #e7eefc;
+}
+
+.reverse-empty {
+  color: #93a3bf;
+}

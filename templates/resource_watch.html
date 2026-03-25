@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Watch</title>
+  <style>
+    body { margin: 0; font-family: Segoe UI, Arial, sans-serif; background: #eef3fb; color: #172033; }
+    a { color: #1262ff; text-decoration: none; }
+    input, button { border-radius: 10px; border: 1px solid #c9d3e5; padding: 10px 12px; font: inherit; }
+    button { background: #111827; color: #fff; border: none; cursor: pointer; }
+    button:disabled { cursor: wait; opacity: 0.7; }
+    .wrap { max-width: 1480px; margin: 0 auto; padding: 20px; }
+    .topbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+    .badge { background: #1262ff; color: #fff; padding: 4px 10px; border-radius: 999px; font-size: 12px; }
+    .topbar-note { font-size: 12px; color: #64748b; }
+    .layout { display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); gap: 18px; align-items: start; }
+    .panel { background: #fff; border: 1px solid #d6deec; border-radius: 18px; box-shadow: 0 14px 36px rgba(15,23,42,.08); padding: 16px; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .panel-head h3 { margin: 0; }
+    .field { display: grid; gap: 6px; margin-bottom: 10px; }
+    .field label { font-size: 12px; color: #64748b; }
+    .inline-form { display: grid; gap: 10px; }
+    .ghost-btn, .secondary-btn { background: #eef4ff; color: #17336b; border: 1px solid #cfe0ff; }
+    .danger-btn { background: #fff2f2; color: #9f1c1c; border: 1px solid #f5c8c8; }
+    .status-line { min-height: 20px; margin: 10px 0; font-size: 13px; color: #64748b; }
+    .status-line.ok { color: #0f9d58; }
+    .status-line.warn { color: #b45309; }
+    .status-line.error { color: #c62828; }
+    .watch-list { display: grid; gap: 10px; margin-top: 14px; max-height: 70vh; overflow: auto; padding-right: 4px; }
+    .watch-card { border: 1px solid #d6deec; border-radius: 16px; padding: 12px; display: grid; gap: 10px; background: linear-gradient(180deg, #fff 0%, #f8fbff 100%); }
+    .watch-card.active { border-color: #9bbcff; box-shadow: 0 0 0 3px #dfeaff; }
+    .watch-card-top { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
+    .watch-card-tags { font-size: 14px; font-weight: 700; line-height: 1.35; word-break: break-word; }
+    .watch-card-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #64748b; }
+    .watch-card-actions, .card-actions, .tag-row, .modal-footer, .config-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .small-btn, .card-btn, .pill-btn { padding: 7px 10px; border-radius: 999px; font-size: 12px; }
+    .watch-card-actions .danger-btn { margin-left: auto; }
+    .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .result-card { border: 1px solid #d6deec; border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, #fff 0%, #f8fbff 100%); box-shadow: 0 14px 36px rgba(15,23,42,.08); }
+    .result-card.imported { border-color: #abd9bc; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 2px #e3f5e8 inset; }
+    .preview-wrap { display: block; width: 100%; aspect-ratio: 4 / 3; background: linear-gradient(180deg, #dfe8f6 0%, #ced8ea 100%); border: none; padding: 0; }
+    .preview-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .result-card-body { padding: 12px; display: grid; gap: 8px; }
+    .result-card-title { font-size: 14px; font-weight: 700; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .result-card-text { font-size: 12px; color: #64748b; line-height: 1.4; word-break: break-word; }
+    .tag-pill, .state-pill { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #eef4ff; border: 1px solid #d5e2fb; color: #244377; font-size: 11px; }
+    .state-pill.imported { background: #ebf8ef; border-color: #bfe3ca; color: #21653a; }
+    .state-pill.pending { background: #fff7e8; border-color: #f1ddb0; color: #8b5a00; }
+    .state-pill.neutral { background: #f4f7fb; border-color: #d6deec; color: #5d6b82; }
+    .empty-state { border: 1px dashed #d6deec; border-radius: 14px; padding: 28px; text-align: center; color: #64748b; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(6, 10, 18, 0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
+    .modal-backdrop.open { display: flex; }
+    .modal-shell { width: min(97vw, 1520px); height: 96vh; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
+    .modal-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #eef4ff; }
+    .modal-controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .modal-btn { background: rgba(20, 29, 46, 0.9); color: #fff; border: 1px solid #42577f; border-radius: 8px; padding: 8px 11px; }
+    .modal-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 12px; }
+    .modal-shell.sidebar-hidden .modal-body { grid-template-columns: minmax(0, 1fr) 0; }
+    .modal-stage { min-height: 0; height: 100%; display: grid; place-items: center; border-radius: 16px; overflow: hidden; padding: 10px; background: radial-gradient(circle at top, #17253f, #09111d 72%); position: relative; }
+    .modal-image, .modal-video { width: auto; height: auto; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
+    .modal-sidebar { min-height: 0; overflow: auto; background: linear-gradient(180deg, #162236 0%, #0f1726 100%); border: 1px solid #22314d; border-radius: 16px; padding: 14px; color: #eef4ff; }
+    .modal-shell.sidebar-hidden .modal-sidebar { overflow: hidden; padding: 0; border-width: 0; opacity: 0; }
+    .modal-meta { display: grid; gap: 10px; font-size: 13px; }
+    .modal-meta-group { display: grid; gap: 8px; }
+    .modal-meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #9fb3d6; }
+    .modal-tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .modal-tag { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,0.07); border: 1px solid rgba(180, 202, 236, 0.2); font-size: 11px; }
+    .modal-status { font-size: 12px; color: #aebddb; }
+    .toast { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(10, 16, 28, 0.92); color: #fff; border: 1px solid #455a84; border-radius: 8px; padding: 7px 11px; font-size: 12px; display: none; }
+    .config-backdrop { position: fixed; inset: 0; background: rgba(10, 18, 32, 0.55); display: none; align-items: center; justify-content: center; z-index: 9900; padding: 18px; }
+    .config-backdrop.open { display: flex; }
+    .config-modal { width: min(94vw, 520px); background: #fff; border: 1px solid #d6deec; border-radius: 20px; box-shadow: 0 24px 60px rgba(15,23,42,.24); padding: 18px; }
+    .config-title { margin: 0 0 4px; }
+    .config-note { font-size: 12px; color: #64748b; margin-bottom: 14px; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+    @media (max-width: 980px) { .modal-body { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) {
+      .modal-shell { width: 100vw; height: 100dvh; padding: 10px; }
+      .modal-top { flex-direction: column; align-items: flex-start; }
+      .modal-controls { justify-content: flex-start; }
+      .watch-card-actions .danger-btn { margin-left: 0; }
+      .config-modal { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h2 style="margin:0;">Watch</h2>
+      <span class="badge">{{ watches|length }} watches</span>
+      <a href="{{ url_for('index') }}">Gallery</a>
+      <a href="{{ url_for('lookup_view') }}">Lookup</a>
+      <a href="{{ url_for('stats_view') }}">Stats</a>
+      <a href="{{ url_for('pinned') }}">Pinned ({{ pinned_count }})</a>
+      <span class="topbar-note">Result dir: {{ result_dir }}</span>
+    </div>
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-head">
+          <h3>Watch List</h3>
+          <span class="topbar-note">Compact cards, full config in modal</span>
+        </div>
+        <div class="inline-form">
+          <div class="field"><label for="newWatchTags">Tags</label><input id="newWatchTags" type="text" placeholder="artist_name rating:s"></div>
+          <div class="field"><label for="newWatchTimestamp">Start timestamp</label><input id="newWatchTimestamp" type="datetime-local"></div>
+          <button id="addWatchBtn" type="button">Add Watch</button>
+        </div>
+        <div id="watchStatus" class="status-line"></div>
+        <div id="watchList" class="watch-list">
+          {% for watch in watches %}
+            <article class="watch-card" data-watch-id="{{ watch.id }}" data-watch-tags="{{ watch.tags }}" data-watch-last-seen="{{ watch.last_seen_at }}">
+              <div class="watch-card-top">
+                <div class="watch-card-tags">{{ watch.tags }}</div>
+                <span class="state-pill neutral">Watch</span>
+              </div>
+              <div class="watch-card-meta">
+                <span>Stored: <span class="js-watch-stored">{{ watch.last_seen_at }}</span></span>
+              </div>
+              <div class="watch-card-actions">
+                <button type="button" class="small-btn js-load-watch">Load Missed</button>
+                <button type="button" class="small-btn ghost-btn js-config-watch">Configure</button>
+                <button type="button" class="small-btn danger-btn js-delete-watch">Delete</button>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+      <section class="panel">
+        <h3 style="margin:0 0 6px;">Missed Posts</h3>
+        <div id="feedSummary" class="result-card-text" style="margin-bottom:10px;">Choose a watch and load missed posts sorted from oldest to newest.</div>
+        <div id="feedStatus" class="status-line"></div>
+        <div id="feedGrid" class="result-grid"><div class="empty-state">No watch feed loaded yet.</div></div>
+      </section>
+    </div>
+  </div>
+  <div id="watchConfigModal" class="config-backdrop" aria-hidden="true">
+    <div class="config-modal">
+      <h3 class="config-title">Configure Watch</h3>
+      <div class="config-note">Edit the tags and timestamp here, or stamp it from the latest feed you loaded.</div>
+      <div class="field"><label for="configWatchTags">Tags</label><input id="configWatchTags" type="text"></div>
+      <div class="field"><label for="configWatchTimestamp">Last seen at</label><input id="configWatchTimestamp" type="datetime-local"></div>
+      <div class="config-actions">
+        <button id="configUseNewestBtn" type="button" class="pill-btn ghost-btn">Use Newest Loaded Post</button>
+        <button id="configUseLoadedAtBtn" type="button" class="pill-btn ghost-btn">Use Feed Loaded Time</button>
+      </div>
+      <div id="configWatchHint" class="status-line"></div>
+      <div class="modal-footer" style="margin-top:10px;">
+        <button id="configSaveBtn" type="button">Save Watch</button>
+        <button id="configCloseBtn" type="button" class="secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+  <div id="watchModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-shell">
+      <div class="modal-top">
+        <div>
+          <div id="modalCounter"></div>
+          <div class="modal-status">Keys: A/D or ←/→ next-prev, H hide data, I import, O file, P post, Space play/pause, Esc close</div>
+        </div>
+        <div class="modal-controls">
+          <button id="modalSidebarToggle" type="button" class="modal-btn">Hide Data</button>
+          <button id="modalImport" type="button" class="modal-btn">Import To Library</button>
+          <button id="modalOpenFile" type="button" class="modal-btn">Open File</button>
+          <button id="modalOpenPost" type="button" class="modal-btn">Open Post</button>
+          <button id="modalPrev" type="button" class="modal-btn">Previous</button>
+          <button id="modalNext" type="button" class="modal-btn">Next</button>
+          <button id="modalClose" type="button" class="modal-btn">Close</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="modal-stage">
+          <img id="modalImage" class="modal-image" alt="">
+          <video id="modalVideo" class="modal-video" controls loop></video>
+          <div id="modalToast" class="toast"></div>
+        </div>
+        <aside class="modal-sidebar">
+          <div id="modalMeta" class="modal-meta"></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const addUrl = {{ url_for('watch_add_route') | tojson }};
+      const updateUrl = {{ url_for('watch_update_route') | tojson }};
+      const deleteUrl = {{ url_for('watch_delete_route') | tojson }};
+      const feedUrl = {{ url_for('watch_feed_route') | tojson }};
+      const importUrl = {{ url_for('lookup_import_route') | tojson }};
+      const watchList = document.getElementById("watchList");
+      const newWatchTags = document.getElementById("newWatchTags");
+      const newWatchTimestamp = document.getElementById("newWatchTimestamp");
+      const addWatchBtn = document.getElementById("addWatchBtn");
+      const watchStatus = document.getElementById("watchStatus");
+      const feedSummary = document.getElementById("feedSummary");
+      const feedStatus = document.getElementById("feedStatus");
+      const feedGrid = document.getElementById("feedGrid");
+      const watchConfigModal = document.getElementById("watchConfigModal");
+      const configWatchTags = document.getElementById("configWatchTags");
+      const configWatchTimestamp = document.getElementById("configWatchTimestamp");
+      const configWatchHint = document.getElementById("configWatchHint");
+      const configUseNewestBtn = document.getElementById("configUseNewestBtn");
+      const configUseLoadedAtBtn = document.getElementById("configUseLoadedAtBtn");
+      const configSaveBtn = document.getElementById("configSaveBtn");
+      const configCloseBtn = document.getElementById("configCloseBtn");
+      const modal = document.getElementById("watchModal");
+      const modalShell = modal.querySelector(".modal-shell");
+      const modalCounter = document.getElementById("modalCounter");
+      const modalImage = document.getElementById("modalImage");
+      const modalVideo = document.getElementById("modalVideo");
+      const modalMeta = document.getElementById("modalMeta");
+      const modalSidebarToggleBtn = document.getElementById("modalSidebarToggle");
+      const modalImportBtn = document.getElementById("modalImport");
+      const modalOpenFileBtn = document.getElementById("modalOpenFile");
+      const modalOpenPostBtn = document.getElementById("modalOpenPost");
+      const modalPrevBtn = document.getElementById("modalPrev");
+      const modalNextBtn = document.getElementById("modalNext");
+      const modalCloseBtn = document.getElementById("modalClose");
+      const modalToast = document.getElementById("modalToast");
+      let newestLoadedAt = "";
+      let feedLoadedAt = "";
+      let activeWatchId = "";
+      let modalPosts = [];
+      let modalIndex = 0;
+      let modalOpen = false;
+      let modalSidebarVisible = true;
+      let editingWatchCard = null;
+
+      const escapeHtml = (value) => String(value).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll("\"","&quot;").replaceAll("'","&#39;");
+      const setStatus = (node, message, tone = "") => { node.textContent = message || ""; node.className = "status-line" + (tone ? " " + tone : ""); };
+      const isoToLocalInput = (value) => {
+        if (!value) return "";
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return "";
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      };
+      const localInputToIso = (value) => { if (!value) return ""; const d = new Date(value); return Number.isNaN(d.getTime()) ? "" : d.toISOString(); };
+      const formatDate = (value) => value ? String(value).replace("T", " ").replace("Z", " UTC") : "";
+      const formatDir = (value) => value ? String(value).replaceAll("\\", "/") : "";
+      const applyActiveWatch = () => document.querySelectorAll(".watch-card").forEach((c) => c.classList.toggle("active", c.dataset.watchId === activeWatchId));
+      const defaultNowLocal = () => isoToLocalInput(new Date().toISOString());
+      newWatchTimestamp.value = defaultNowLocal();
+      const currentModalPost = () => modalPosts[modalIndex] || null;
+
+      const updateWatchCardView = (card, watch) => {
+        card.dataset.watchTags = watch.tags || "";
+        card.dataset.watchLastSeen = watch.last_seen_at || "";
+        card.querySelector(".watch-card-tags").textContent = watch.tags || "";
+        card.querySelector(".js-watch-stored").textContent = watch.last_seen_at || "";
+      };
+
+      const createWatchCard = (watch) => {
+        const card = document.createElement("article");
+        card.className = "watch-card";
+        card.dataset.watchId = watch.id;
+        card.dataset.watchTags = watch.tags || "";
+        card.dataset.watchLastSeen = watch.last_seen_at || "";
+        card.innerHTML = `<div class="watch-card-top"><div class="watch-card-tags">${escapeHtml(watch.tags || "")}</div><span class="state-pill neutral">Watch</span></div><div class="watch-card-meta"><span>Stored: <span class="js-watch-stored">${escapeHtml(watch.last_seen_at || "")}</span></span></div><div class="watch-card-actions"><button type="button" class="small-btn js-load-watch">Load Missed</button><button type="button" class="small-btn ghost-btn js-config-watch">Configure</button><button type="button" class="small-btn danger-btn js-delete-watch">Delete</button></div>`;
+        return card;
+      };
+
+      const importedStateMarkup = (post) => {
+        const state = post.library_state || {};
+        if (state.imported) return '<span class="state-pill imported">Imported</span>';
+        if (state.target_dir) return '<span class="state-pill pending">Not Imported</span>';
+        return '<span class="state-pill neutral">Dir Unknown</span>';
+      };
+
+      const importedDetailsMarkup = (post) => {
+        const state = post.library_state || {};
+        if (state.imported && Array.isArray(state.matching_files) && state.matching_files.length) {
+          return `<div class="result-card-text">Library files: ${escapeHtml(state.matching_files.slice(0, 2).join(", "))}</div>`;
+        }
+        if (state.target_dir) {
+          return `<div class="result-card-text">Target dir: ${escapeHtml(formatDir(state.target_dir))}</div>`;
+        }
+        return "";
+      };
+
+      const renderPostCard = (post) => {
+        const previewUrl = post.preview && post.preview.url ? post.preview.url : (post.sample && post.sample.url ? post.sample.url : "");
+        const fileUrl = post.file && post.file.url ? post.file.url : "";
+        const postUrl = post.id ? `https://e621.net/posts/${post.id}` : "";
+        const tags = (((post.tags || {}).general) || []).slice(0, 8);
+        const importLabel = post.library_state && post.library_state.imported ? "Import Again" : "Import";
+        return `<article class="result-card${post.library_state && post.library_state.imported ? " imported" : ""}" data-post-card-id="${escapeHtml(post.id)}">${previewUrl ? `<button type="button" class="preview-wrap" data-action="open-modal" data-post-id="${escapeHtml(post.id)}"><img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(post.id)}"></button>` : '<div class="preview-wrap"></div>'}<div class="result-card-body"><div class="result-card-title">Post #${escapeHtml(post.id)} ${importedStateMarkup(post)}</div><div class="result-card-text">Created: ${escapeHtml(formatDate(post.created_at))}</div><div class="result-card-text">Rating: ${escapeHtml(post.rating || "")} · Score: ${escapeHtml((post.score || {}).total)} · Favs: ${escapeHtml(post.fav_count)}</div>${importedDetailsMarkup(post)}<div class="card-actions"><button type="button" class="card-btn" data-action="open-modal" data-post-id="${escapeHtml(post.id)}">Open</button><a class="card-btn secondary-btn" href="${escapeHtml(postUrl)}" target="_blank" rel="noreferrer">Open Post</a><a class="card-btn secondary-btn" href="${escapeHtml(fileUrl || previewUrl)}" target="_blank" rel="noreferrer">Open File</a><button type="button" class="card-btn secondary-btn" data-action="import-post" data-post-id="${escapeHtml(post.id)}" data-import-label="${escapeHtml(importLabel)}">${escapeHtml(importLabel)}</button></div>${tags.length ? `<div class="tag-row">${tags.map((tag) => `<span class="tag-pill">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</div></article>`;
+      };
+
+      const showToast = (message) => {
+        modalToast.textContent = message;
+        modalToast.style.display = "block";
+        window.setTimeout(() => { modalToast.style.display = "none"; }, 1800);
+      };
+      const applyModalSidebarState = () => {
+        modalShell.classList.toggle("sidebar-hidden", !modalSidebarVisible);
+        modalSidebarToggleBtn.textContent = modalSidebarVisible ? "Hide Data" : "Show Data";
+      };
+      const isVideoPost = (post) => {
+        const ext = String(post.file && post.file.ext || "").toLowerCase();
+        return ["webm", "mp4", "mov", "mkv"].includes(ext);
+      };
+      const renderModalMeta = (post) => {
+        const tags = post.tags || {};
+        const groups = ["artist", "copyright", "character", "species", "general", "meta", "lore"];
+        const tagGroups = groups.filter((group) => Array.isArray(tags[group]) && tags[group].length).map((group) => `<div class="modal-meta-group"><div class="modal-meta-label">${escapeHtml(group)}</div><div class="modal-tag-list">${tags[group].slice(0, group === "general" ? 24 : 10).map((tag) => `<span class="modal-tag">${escapeHtml(tag)}</span>`).join("")}</div></div>`).join("");
+        const state = post.library_state || {};
+        modalMeta.innerHTML = `<div class="modal-meta-group"><div class="modal-meta-label">Post</div><div>Post #${escapeHtml(post.id)} · <a href="https://e621.net/posts/${escapeHtml(post.id)}" target="_blank" rel="noreferrer">open</a></div><div>Created: ${escapeHtml(formatDate(post.created_at))}</div><div>Uploader: ${escapeHtml(post.uploader_name || post.uploader_id || "")}</div><div>Rating: ${escapeHtml(post.rating || "")} · Score: ${escapeHtml((post.score || {}).total)} · Favs: ${escapeHtml(post.fav_count)}</div><div>Library: ${state.imported ? "Imported" : "Not imported yet"}</div>${state.target_dir ? `<div>Target dir: ${escapeHtml(formatDir(state.target_dir))}</div>` : ""}${state.imported && Array.isArray(state.matching_files) && state.matching_files.length ? `<div>Files: ${escapeHtml(state.matching_files.join(", "))}</div>` : ""}</div>${post.description ? `<div class="modal-meta-group"><div class="modal-meta-label">Description</div><div>${escapeHtml(post.description)}</div></div>` : ""}${tagGroups}`;
+      };
+      const renderModal = () => {
+        const post = currentModalPost();
+        if (!post) return;
+        modalCounter.textContent = `${modalIndex + 1} / ${modalPosts.length}`;
+        renderModalMeta(post);
+        modalImportBtn.textContent = post.library_state && post.library_state.imported ? "Import Again" : "Import To Library";
+        const fileUrl = post.file && post.file.url ? post.file.url : "";
+        if (isVideoPost(post) && fileUrl) {
+          modalImage.style.display = "none";
+          modalImage.removeAttribute("src");
+          modalVideo.src = fileUrl;
+          modalVideo.style.display = "block";
+          modalVideo.load();
+        } else {
+          modalVideo.pause();
+          modalVideo.removeAttribute("src");
+          modalVideo.style.display = "none";
+          modalImage.src = fileUrl || (post.sample && post.sample.url) || (post.preview && post.preview.url) || "";
+          modalImage.style.display = "block";
+        }
+      };
+      const openModalAt = (postId) => {
+        const index = modalPosts.findIndex((post) => String(post.id) === String(postId));
+        if (index < 0) return;
+        modalIndex = index;
+        modalOpen = true;
+        modal.classList.add("open");
+        modal.setAttribute("aria-hidden", "false");
+        applyModalSidebarState();
+        renderModal();
+      };
+      const closeModal = () => {
+        modalOpen = false;
+        modal.classList.remove("open");
+        modal.setAttribute("aria-hidden", "true");
+        modalVideo.pause();
+        modalVideo.removeAttribute("src");
+        modalToast.style.display = "none";
+      };
+      const modalPrev = () => { if (modalPosts.length) { modalIndex = (modalIndex - 1 + modalPosts.length) % modalPosts.length; renderModal(); } };
+      const modalNext = () => { if (modalPosts.length) { modalIndex = (modalIndex + 1) % modalPosts.length; renderModal(); } };
+      const openCurrentFile = () => { const post = currentModalPost(); const url = post && post.file && post.file.url; if (url) window.open(url, "_blank", "noopener,noreferrer"); };
+      const openCurrentPost = () => { const post = currentModalPost(); if (post && post.id) window.open(`https://e621.net/posts/${post.id}`, "_blank", "noopener,noreferrer"); };
+
+      const renderFeed = () => {
+        if (!modalPosts.length) {
+          feedGrid.innerHTML = '<div class="empty-state">No missed posts found for this watch.</div>';
+          return;
+        }
+        feedGrid.innerHTML = modalPosts.map(renderPostCard).join("");
+      };
+
+      const setImportTriggerState = (button, importing, idleLabel = "Import") => {
+        if (!button) return;
+        if (!button.dataset.importLabel) button.dataset.importLabel = idleLabel;
+        button.disabled = importing;
+        button.textContent = importing ? "Importing..." : (button.dataset.importLabel || idleLabel);
+      };
+
+      const markPostImported = (post, payload) => {
+        if (!post) return;
+        const relPath = String(payload && payload.rel_path || "");
+        const fileName = relPath ? relPath.split(/[\\/]/).pop() : "";
+        const targetDir = relPath ? relPath.split(/[\\/]/).slice(0, -1).join("/") : ((post.library_state || {}).target_dir || "");
+        const nextFiles = Array.isArray(post.library_state && post.library_state.matching_files) ? [...post.library_state.matching_files] : [];
+        if (fileName && !nextFiles.includes(fileName)) nextFiles.unshift(fileName);
+        post.library_state = {
+          ...(post.library_state || {}),
+          imported: true,
+          target_dir: targetDir,
+          matching_files: nextFiles,
+        };
+      };
+
+      const importPost = async (post, button = null) => {
+        if (!post) return;
+        const idleLabel = post.library_state && post.library_state.imported ? "Import Again" : "Import";
+        setImportTriggerState(button, true, idleLabel);
+        modalImportBtn.disabled = true;
+        modalImportBtn.textContent = "Importing...";
+        setStatus(feedStatus, `Importing post #${post.id}...`, "warn");
+        try {
+          const response = await fetch(importUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ post }) });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.ok) {
+            setStatus(feedStatus, payload.message || "Import failed", "error");
+            showToast(payload.message || "Import failed");
+            return;
+          }
+          markPostImported(post, payload);
+          renderFeed();
+          if (modalOpen) renderModal();
+          setStatus(feedStatus, payload.message || "Imported", "ok");
+          showToast(payload.message || "Imported");
+        } catch (_) {
+          setStatus(feedStatus, "Import failed", "error");
+          showToast("Import failed");
+        } finally {
+          setImportTriggerState(button, false, post.library_state && post.library_state.imported ? "Import Again" : idleLabel);
+          modalImportBtn.disabled = false;
+          if (modalOpen) renderModal();
+        }
+      };
+
+      const addWatch = async () => {
+        const tags = newWatchTags.value.trim();
+        const lastSeen = localInputToIso(newWatchTimestamp.value);
+        if (!tags) { setStatus(watchStatus, "Tags are required", "error"); return; }
+        addWatchBtn.disabled = true;
+        setStatus(watchStatus, "Adding watch...", "warn");
+        try {
+          const response = await fetch(addUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags, last_seen_at: lastSeen }) });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.ok) { setStatus(watchStatus, payload.message || "Add failed", "error"); return; }
+          watchList.prepend(createWatchCard(payload.watch));
+          setStatus(watchStatus, payload.message || "Watch added", "ok");
+          newWatchTags.value = "";
+          newWatchTimestamp.value = defaultNowLocal();
+        } catch (_) { setStatus(watchStatus, "Add failed", "error"); }
+        finally { addWatchBtn.disabled = false; }
+      };
+
+      const saveWatch = async (card, tags, lastSeen) => {
+        const id = card.dataset.watchId;
+        setStatus(watchStatus, "Saving watch...", "warn");
+        try {
+          const response = await fetch(updateUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, tags, last_seen_at: lastSeen }) });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.ok) { setStatus(watchStatus, payload.message || "Update failed", "error"); return false; }
+          updateWatchCardView(card, payload.watch);
+          setStatus(watchStatus, payload.message || "Watch updated", "ok");
+          return true;
+        } catch (_) { setStatus(watchStatus, "Update failed", "error"); }
+        return false;
+      };
+
+      const deleteWatch = async (card) => {
+        const id = card.dataset.watchId;
+        setStatus(watchStatus, "Deleting watch...", "warn");
+        try {
+          const response = await fetch(deleteUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.ok) { setStatus(watchStatus, payload.message || "Delete failed", "error"); return; }
+          if (activeWatchId === id) activeWatchId = "";
+          card.remove();
+          applyActiveWatch();
+          setStatus(watchStatus, payload.message || "Watch deleted", "ok");
+        } catch (_) { setStatus(watchStatus, "Delete failed", "error"); }
+      };
+
+      const loadWatchFeed = async (card) => {
+        const tags = card.dataset.watchTags || "";
+        const lastSeen = card.dataset.watchLastSeen || "";
+        activeWatchId = card.dataset.watchId;
+        applyActiveWatch();
+        newestLoadedAt = "";
+        feedLoadedAt = "";
+        setStatus(feedStatus, `Loading missed posts for ${tags}...`, "warn");
+        try {
+          const response = await fetch(feedUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags, last_seen_at: lastSeen, page: "1", limit: "60" }) });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.ok) { setStatus(feedStatus, payload.message || "Feed load failed", "error"); feedGrid.innerHTML = '<div class="empty-state">Feed load failed.</div>'; return; }
+          const posts = (payload.data && Array.isArray(payload.data.posts)) ? payload.data.posts : [];
+          modalPosts = posts;
+          feedLoadedAt = new Date().toISOString();
+          if (!posts.length) { feedSummary.textContent = `No missed posts for ${tags}.`; feedGrid.innerHTML = '<div class="empty-state">No missed posts found for this watch.</div>'; setStatus(feedStatus, "No missed posts", "ok"); return; }
+          newestLoadedAt = posts[posts.length - 1].created_at || "";
+          feedSummary.textContent = `${posts.length} missed post${posts.length === 1 ? "" : "s"} for ${tags}, ordered oldest to newest. Imported items are flagged from their target folder.`;
+          renderFeed();
+          setStatus(feedStatus, "Feed loaded", "ok");
+        } catch (_) { setStatus(feedStatus, "Feed load failed", "error"); }
+      };
+
+      const openWatchConfig = (card) => {
+        editingWatchCard = card;
+        configWatchTags.value = card.dataset.watchTags || "";
+        configWatchTimestamp.value = isoToLocalInput(card.dataset.watchLastSeen || "");
+        setStatus(configWatchHint, "", "");
+        watchConfigModal.classList.add("open");
+        watchConfigModal.setAttribute("aria-hidden", "false");
+      };
+
+      const closeWatchConfig = () => {
+        editingWatchCard = null;
+        watchConfigModal.classList.remove("open");
+        watchConfigModal.setAttribute("aria-hidden", "true");
+      };
+
+      const stampConfigTimestamp = (isoValue, missingMessage) => {
+        if (!isoValue) {
+          setStatus(configWatchHint, missingMessage, "warn");
+          return;
+        }
+        configWatchTimestamp.value = isoToLocalInput(isoValue);
+        setStatus(configWatchHint, "Timestamp updated in editor", "ok");
+      };
+
+      addWatchBtn.addEventListener("click", addWatch);
+      watchList.addEventListener("click", (event) => {
+        const card = event.target.closest(".watch-card");
+        if (!card) return;
+        if (event.target.closest(".js-load-watch")) { loadWatchFeed(card); return; }
+        if (event.target.closest(".js-config-watch")) { openWatchConfig(card); return; }
+        if (event.target.closest(".js-delete-watch")) { deleteWatch(card); }
+      });
+      configUseNewestBtn.addEventListener("click", () => {
+        if (!editingWatchCard || editingWatchCard.dataset.watchId !== activeWatchId) {
+          stampConfigTimestamp("", "Load missed posts for this watch first to use the newest loaded post timestamp");
+          return;
+        }
+        stampConfigTimestamp(newestLoadedAt, "Load missed posts for this watch first to use the newest loaded post timestamp");
+      });
+      configUseLoadedAtBtn.addEventListener("click", () => {
+        if (!editingWatchCard || editingWatchCard.dataset.watchId !== activeWatchId) {
+          stampConfigTimestamp("", "Load missed posts for this watch first to use the feed loaded time");
+          return;
+        }
+        stampConfigTimestamp(feedLoadedAt, "Load missed posts for this watch first to use the feed loaded time");
+      });
+      configSaveBtn.addEventListener("click", async () => {
+        if (!editingWatchCard) return;
+        const tags = configWatchTags.value.trim();
+        const lastSeen = localInputToIso(configWatchTimestamp.value);
+        if (!tags) { setStatus(configWatchHint, "Tags are required", "error"); return; }
+        configSaveBtn.disabled = true;
+        const ok = await saveWatch(editingWatchCard, tags, lastSeen);
+        configSaveBtn.disabled = false;
+        if (ok) closeWatchConfig();
+      });
+      configCloseBtn.addEventListener("click", closeWatchConfig);
+      watchConfigModal.addEventListener("click", (event) => { if (event.target === watchConfigModal) closeWatchConfig(); });
+      feedGrid.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-action]");
+        if (!button) return;
+        const post = modalPosts.find((item) => String(item.id) === String(button.dataset.postId));
+        if (button.dataset.action === "open-modal") {
+          openModalAt(button.dataset.postId);
+          return;
+        }
+        importPost(post, button);
+      });
+      modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
+      modalCloseBtn.addEventListener("click", closeModal);
+      modalPrevBtn.addEventListener("click", modalPrev);
+      modalNextBtn.addEventListener("click", modalNext);
+      modalSidebarToggleBtn.addEventListener("click", () => { modalSidebarVisible = !modalSidebarVisible; applyModalSidebarState(); });
+      modalOpenFileBtn.addEventListener("click", openCurrentFile);
+      modalOpenPostBtn.addEventListener("click", openCurrentPost);
+      modalImportBtn.addEventListener("click", () => {
+        const post = currentModalPost();
+        const button = post ? feedGrid.querySelector(`[data-action="import-post"][data-post-id="${CSS.escape(String(post.id))}"]`) : null;
+        importPost(post, button);
+      });
+      window.addEventListener("keydown", (event) => {
+        const t = event.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        if (watchConfigModal.classList.contains("open") && event.key === "Escape") { event.preventDefault(); closeWatchConfig(); return; }
+        if (!modalOpen) return;
+        const key = event.key.toLowerCase();
+        if (key === "escape") { event.preventDefault(); closeModal(); return; }
+        if (key === "arrowleft" || key === "a") { event.preventDefault(); modalPrev(); return; }
+        if (key === "arrowright" || key === "d") { event.preventDefault(); modalNext(); return; }
+        if (key === "h") { event.preventDefault(); modalSidebarVisible = !modalSidebarVisible; applyModalSidebarState(); return; }
+        if (key === "i") {
+          event.preventDefault();
+          const post = currentModalPost();
+          const button = post ? feedGrid.querySelector(`[data-action="import-post"][data-post-id="${CSS.escape(String(post.id))}"]`) : null;
+          importPost(post, button);
+          return;
+        }
+        if (key === "o") { event.preventDefault(); openCurrentFile(); return; }
+        if (key === "p") { event.preventDefault(); openCurrentPost(); return; }
+        if (key === " " && modalVideo.style.display !== "none") {
+          event.preventDefault();
+          if (modalVideo.paused) modalVideo.play().catch(() => {});
+          else modalVideo.pause();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

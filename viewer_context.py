@@ -33,6 +33,8 @@ RESULT_DIR = Path(os.getenv("RESOURCE_RESULT_DIR", DEFAULT_RESULT_DIR)).resolve(
 PINNED_JSON = Path(os.getenv("RESOURCE_PINNED_JSON", APP_DIR / "pinned_files.json")).resolve()
 INBOX_DIR = Path(os.getenv("RESOURCE_INBOX_DIR", APP_DIR / "resource_inbox")).resolve()
 INBOX_MARKER = INBOX_DIR / "drop_files_here.txt"
+WATCH_DIR = Path(os.getenv("RESOURCE_WATCH_DIR", APP_DIR / "watch")).resolve()
+WATCH_JSON = WATCH_DIR / "watches.json"
 
 app = Flask(__name__, template_folder=str(TEMPLATE_DIR))
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "resource-viewer-secret")

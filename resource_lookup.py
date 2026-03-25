@@ -9,6 +9,8 @@ import uuid
 from base64 import b64encode
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.parse import urlparse
 
 from env_loader import load_env_file
 
@@ -21,6 +23,7 @@ class ReverseSearchService:
         self.media_type_for_ext = media_type_for_ext
         self.safe_rel_path = safe_rel_path
         self.config_path = Path(__file__).resolve().parent / "reverse_search_config.json"
+        self.api_base_url = os.getenv("RESOURCE_E621_API_BASE_URL", "https://e621.net").rstrip("/")
         self.iqdb_url = os.getenv("RESOURCE_E621_IQDB_URL", "https://e621.net/iqdb_queries.json")
         self.login = os.getenv("E621_LOGIN", "").strip()
         self.api_key = os.getenv("E621_API_KEY", "").strip()
@@ -33,6 +36,156 @@ class ReverseSearchService:
         self._request_spacing_lock = threading.Lock()
         self._last_request_completed_at = None
         self.ui_config = self.load_ui_config()
+
+    def build_auth_headers(self, include_content_type=None):
+        headers = {
+            "User-Agent": self.user_agent,
+            "Accept": "application/json",
+        }
+        if include_content_type:
+            headers["Content-Type"] = include_content_type
+        if self.login and self.api_key:
+            headers["Authorization"] = "Basic " + b64encode(f"{self.login}:{self.api_key}".encode("utf-8")).decode("ascii")
+        return headers
+
+    def perform_json_request(self, url, method="GET", data=None, content_type=None):
+        request_data = None
+        if data is not None:
+            request_data = json.dumps(data).encode("utf-8")
+            content_type = content_type or "application/json"
+        headers = self.build_auth_headers(include_content_type=content_type)
+        req = urllib.request.Request(url, data=request_data, headers=headers, method=method)
+
+        self.acquire_request_slot()
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                raw_output = resp.read().decode("utf-8", errors="replace")
+                http_status = getattr(resp, "status", 200)
+        except HTTPError as exc:
+            raw_output = exc.read().decode("utf-8", errors="replace")
+            http_status = exc.code
+        except URLError as exc:
+            return {"ok": False, "message": f"Request failed: {exc.reason}", "http_status": None}, 502
+        except Exception as exc:
+            return {"ok": False, "message": f"Request failed: {exc}", "http_status": None}, 500
+        finally:
+            self.release_request_slot()
+
+        try:
+            parsed = json.loads(raw_output) if raw_output else None
+        except json.JSONDecodeError:
+            parsed = None
+
+        if 200 <= http_status < 300:
+            return {
+                "ok": True,
+                "http_status": http_status,
+                "data": parsed if parsed is not None else raw_output,
+            }, http_status
+
+        message = None
+        if isinstance(parsed, dict):
+            message = parsed.get("message") or parsed.get("reason")
+        if not message:
+            message = f"API request failed with status {http_status}"
+        return {
+            "ok": False,
+            "message": message,
+            "http_status": http_status,
+            "data": parsed if parsed is not None else raw_output,
+        }, http_status
+
+    def fetch_api_listing(self, endpoint_key, tags="", page="", limit="", pool_id="", search_query=""):
+        endpoint_key = str(endpoint_key or "posts").strip().lower()
+        allowed = {"posts", "favorites", "pools", "pool"}
+        if endpoint_key not in allowed:
+            return {"ok": False, "message": "Unsupported endpoint"}, 400
+
+        params = {}
+        tags = str(tags or "").strip()
+        page = str(page or "").strip()
+        limit = str(limit or "").strip()
+        pool_id = str(pool_id or "").strip()
+        search_query = str(search_query or "").strip()
+
+        if endpoint_key == "posts":
+            path = "/posts.json"
+            if tags:
+                params["tags"] = tags
+        elif endpoint_key == "favorites":
+            path = "/favorites.json"
+            if tags:
+                params["tags"] = tags
+        elif endpoint_key == "pools":
+            path = "/pools.json"
+            if search_query:
+                params["search[name_matches]"] = search_query
+            if tags:
+                params["search[description_matches]"] = tags
+        else:
+            if not pool_id.isdigit():
+                return {"ok": False, "message": "Pool ID is required for pool detail"}, 400
+            path = f"/pools/{pool_id}.json"
+
+        if page:
+            params["page"] = page
+        if limit:
+            params["limit"] = limit
+
+        query = urlencode(params, doseq=True)
+        url = f"{self.api_base_url}{path}"
+        if query:
+            url = f"{url}?{query}"
+
+        payload, status = self.perform_json_request(url)
+        payload["request"] = {
+            "endpoint": endpoint_key,
+            "path": path,
+            "query": params,
+            "url": url,
+        }
+        return payload, status
+
+    def parse_post_created_at(self, created_at):
+        raw = str(created_at or "").strip()
+        if not raw:
+            return None
+        normalized = raw.replace("Z", "+00:00")
+        try:
+            parsed = dt.datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(dt.timezone.utc).replace(tzinfo=None)
+        return parsed
+
+    def download_external_media(self, source_url):
+        if not source_url:
+            return {"ok": False, "message": "Missing source URL"}, 400
+        parsed = urlparse(str(source_url))
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return {"ok": False, "message": "Invalid source URL"}, 400
+
+        req = urllib.request.Request(str(source_url), headers=self.build_auth_headers(), method="GET")
+        self.acquire_request_slot()
+        try:
+            with urllib.request.urlopen(req, timeout=max(self.timeout, 60)) as resp:
+                file_bytes = resp.read()
+                http_status = getattr(resp, "status", 200)
+                content_type = resp.headers.get("Content-Type", "")
+        except HTTPError as exc:
+            message = exc.read().decode("utf-8", errors="replace")
+            return {"ok": False, "message": f"Download failed with status {exc.code}: {message[:200]}"}, exc.code
+        except URLError as exc:
+            return {"ok": False, "message": f"Download failed: {exc.reason}"}, 502
+        except Exception as exc:
+            return {"ok": False, "message": f"Download failed: {exc}"}, 500
+        finally:
+            self.release_request_slot()
+
+        if http_status < 200 or http_status >= 300:
+            return {"ok": False, "message": f"Download failed with status {http_status}"}, http_status
+        return {"ok": True, "bytes": file_bytes, "content_type": content_type}, 200
 
     def load_ui_config(self):
         default_config = {

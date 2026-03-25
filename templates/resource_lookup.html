@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>API Explorer</title>
+  <style>
+    :root {
+      --bg: #eef3fb;
+      --card: #ffffff;
+      --card-dark: #0f1726;
+      --border: #d6deec;
+      --text: #172033;
+      --muted: #64748b;
+      --accent: #1262ff;
+      --ok: #0f9d58;
+      --warn: #b45309;
+      --error: #c62828;
+      --shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Segoe UI, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, #f8fbff 0%, #edf3ff 30%, transparent 60%),
+        linear-gradient(180deg, #eaf1ff 0%, var(--bg) 32%, #f7f9fd 100%);
+    }
+    a { color: var(--accent); text-decoration: none; }
+    code { background: #edf2fb; padding: 1px 6px; border-radius: 6px; }
+    .wrap { max-width: 1520px; margin: 0 auto; padding: 20px; }
+    .topbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+    .badge { background: var(--accent); color: #fff; padding: 4px 10px; border-radius: 999px; font-size: 12px; }
+    .topbar-note { font-size: 12px; color: var(--muted); }
+    .flash { background: #fff6d8; border: 1px solid #f0de93; padding: 8px; border-radius: 8px; margin: 0 0 12px; }
+    .panel { background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; margin-bottom: 18px; }
+    .panel-dark { background: linear-gradient(180deg, #162236 0%, var(--card-dark) 100%); border-color: #22314d; color: #edf4ff; }
+    .panel-tight { padding: 14px; }
+    .panel-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 14px; }
+    .panel-head-tight { margin-bottom: 10px; }
+    .panel-head h3 { margin: 0; font-size: 18px; }
+    .panel-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .panel-dark .panel-head p { color: #aebddb; }
+    .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 12px; color: var(--muted); }
+    input, select, button { border-radius: 10px; border: 1px solid #c9d3e5; padding: 10px 12px; font: inherit; }
+    button { background: #111827; color: #fff; border: none; cursor: pointer; }
+    .ghost-btn { background: #eef4ff; color: #17336b; border: 1px solid #cfe0ff; }
+    .ghost-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .field-actions { justify-content: end; }
+    .inline-help { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; color: var(--muted); font-size: 12px; }
+    .results-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(320px, 420px); gap: 18px; align-items: start; }
+    .results-sidebar { position: sticky; top: 16px; }
+    .status-line { min-height: 20px; margin-bottom: 10px; font-size: 13px; color: var(--muted); }
+    .status-line.ok { color: var(--ok); }
+    .status-line.warn { color: var(--warn); }
+    .status-line.error { color: var(--error); }
+    .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .result-card { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); box-shadow: var(--shadow); }
+    .result-card-body { padding: 12px; display: grid; gap: 8px; }
+    .result-card-title { font-size: 14px; font-weight: 700; word-break: break-word; }
+    .result-card-text { font-size: 12px; color: var(--muted); line-height: 1.4; word-break: break-word; }
+    .card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .card-btn { background: #13213b; color: #fff; border: 1px solid #30476f; border-radius: 999px; padding: 7px 10px; font-size: 12px; cursor: pointer; }
+    .card-btn.secondary { background: #eef4ff; color: #17336b; border: 1px solid #cfe0ff; }
+    .preview-wrap { display: block; width: 100%; aspect-ratio: 4 / 3; background: linear-gradient(180deg, #dfe8f6 0%, #ced8ea 100%); }
+    .preview-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 999px; background: #eef4ff; border: 1px solid #d5e2fb; color: #244377; font-size: 11px; }
+    .request-meta { display: grid; gap: 10px; font-size: 12px; }
+    .meta-block { border: 1px solid #243452; border-radius: 12px; padding: 10px; background: rgba(255, 255, 255, 0.03); }
+    .meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #9fb3d6; margin-bottom: 6px; }
+    .meta-value { color: #eef4ff; word-break: break-word; }
+    .raw-json { margin: 0; min-height: 220px; max-height: 70vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: Consolas, "Courier New", monospace; font-size: 12px; color: #f3f7ff; }
+    .empty-state { border: 1px dashed var(--border); border-radius: 14px; padding: 28px; text-align: center; color: var(--muted); grid-column: 1 / -1; }
+    .empty-state-dark { border-color: #334867; color: #aebddb; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(6, 10, 18, 0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
+    .modal-backdrop.open { display: flex; }
+    .modal-shell { width: min(97vw, 1520px); height: 96vh; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
+    .modal-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #eef4ff; }
+    .modal-controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .modal-btn { background: rgba(20, 29, 46, 0.9); color: #fff; border: 1px solid #42577f; border-radius: 8px; padding: 8px 11px; }
+    .modal-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 12px; }
+    .modal-shell.sidebar-hidden .modal-body { grid-template-columns: minmax(0, 1fr) 0; }
+    .modal-stage { min-height: 0; height: 100%; display: grid; place-items: center; border-radius: 16px; overflow: hidden; padding: 10px; background: radial-gradient(circle at top, #17253f, #09111d 72%); }
+    .modal-image, .modal-video { width: auto; height: auto; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
+    .modal-sidebar { min-height: 0; overflow: auto; background: linear-gradient(180deg, #162236 0%, #0f1726 100%); border: 1px solid #22314d; border-radius: 16px; padding: 14px; color: #eef4ff; }
+    .modal-shell.sidebar-hidden .modal-sidebar { overflow: hidden; padding: 0; border-width: 0; opacity: 0; }
+    .modal-meta { display: grid; gap: 10px; font-size: 13px; }
+    .modal-meta-group { display: grid; gap: 8px; }
+    .modal-meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #9fb3d6; }
+    .modal-tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .modal-tag { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,0.07); border: 1px solid rgba(180, 202, 236, 0.2); font-size: 11px; }
+    .modal-status { font-size: 12px; color: #aebddb; }
+    .toast { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(10, 16, 28, 0.92); color: #fff; border: 1px solid #455a84; border-radius: 8px; padding: 7px 11px; font-size: 12px; display: none; }
+    @media (max-width: 980px) {
+      .results-layout { grid-template-columns: 1fr; }
+      .results-sidebar { position: static; }
+      .modal-body { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .wrap { padding: 12px; }
+      .filters { grid-template-columns: 1fr; }
+      .result-grid { grid-template-columns: 1fr; }
+      .modal-shell { width: 100vw; height: 100dvh; padding: 10px; }
+      .modal-top { flex-direction: column; align-items: flex-start; }
+      .modal-controls { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h2 style="margin:0;">API Explorer</h2>
+      <span class="badge">e621 JSON</span>
+      <a href="{{ url_for('index') }}">Gallery</a>
+      <a href="{{ url_for('watch_view') }}">Watch</a>
+      <a href="{{ url_for('stats_view') }}">Stats</a>
+      <a href="{{ url_for('pinned') }}">Pinned ({{ pinned_count }})</a>
+      <a href="{{ url_for('upload_resources') }}">Upload</a>
+      <a href="{{ url_for('ingest_resources') }}">Ingest Folder ({{ inbox_count }})</a>
+      <span class="topbar-note">Result dir: {{ result_dir }}</span>
+    </div>
+
+    {% with msgs = get_flashed_messages() %}
+      {% if msgs %}
+        {% for m in msgs %}
+          <div class="flash">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h3>Query Builder</h3>
+          <p>Browse JSON endpoints like <code>posts.json</code>, <code>favorites.json</code>, <code>pools.json</code>, and <code>pools/{id}.json</code>.</p>
+        </div>
+      </div>
+      <form id="apiExplorerForm" class="filters">
+        <div class="field">
+          <label for="endpoint">Endpoint</label>
+          <select id="endpoint" name="endpoint">
+            <option value="posts">posts.json</option>
+            <option value="favorites">favorites.json</option>
+            <option value="pools">pools.json</option>
+            <option value="pool">pools/{id}.json</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="tags">Tags / query</label>
+          <input id="tags" name="tags" type="text" placeholder="cat_ears rating:s order:favcount">
+        </div>
+        <div class="field">
+          <label for="searchQuery">Name / text search</label>
+          <input id="searchQuery" name="search_query" type="text" placeholder="Useful for pools.json">
+        </div>
+        <div class="field">
+          <label for="poolId">Pool ID</label>
+          <input id="poolId" name="pool_id" type="number" min="1" placeholder="Required for pools/{id}.json">
+        </div>
+        <div class="field">
+          <label for="page">Page</label>
+          <input id="page" name="page" type="text" placeholder="1">
+        </div>
+        <div class="field">
+          <label for="limit">Limit</label>
+          <input id="limit" name="limit" type="number" min="1" max="320" value="20">
+        </div>
+        <div class="field field-actions">
+          <label>&nbsp;</label>
+          <button type="submit">Fetch data</button>
+        </div>
+      </form>
+      <div class="inline-help">
+        <span><code>posts.json</code>: uses <code>tags</code>, <code>page</code>, <code>limit</code>.</span>
+        <span><code>favorites.json</code>: uses <code>tags</code>, <code>page</code>, <code>limit</code>.</span>
+        <span><code>pools.json</code>: uses name/text search plus paging.</span>
+        <span><code>pools/{id}.json</code>: fetches one pool by ID.</span>
+      </div>
+    </section>
+
+    <section class="results-layout">
+      <div class="results-main">
+        <div class="panel panel-tight">
+          <div class="panel-head panel-head-tight">
+            <div>
+              <h3>Rendered Results</h3>
+              <p id="resultSummary">No request yet.</p>
+            </div>
+            <button id="refreshRequest" type="button" class="ghost-btn" disabled>Refresh</button>
+          </div>
+          <div id="resultStatus" class="status-line"></div>
+          <div id="resultGrid" class="result-grid">
+            <div class="empty-state">Run a query to see endpoint data here.</div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="results-sidebar">
+        <div class="panel panel-dark">
+          <div class="panel-head panel-head-tight">
+            <div>
+              <h3>Request</h3>
+              <p>The actual proxied API URL and parameters.</p>
+            </div>
+          </div>
+          <div id="requestMeta" class="request-meta">
+            <div class="empty-state empty-state-dark">No request yet.</div>
+          </div>
+        </div>
+        <div class="panel panel-dark">
+          <div class="panel-head panel-head-tight">
+            <div>
+              <h3>Raw JSON</h3>
+              <p>Full response body from the API proxy.</p>
+            </div>
+          </div>
+          <pre id="rawJson" class="raw-json">No data yet.</pre>
+        </div>
+      </aside>
+    </section>
+  </div>
+
+  <div id="apiModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-shell">
+      <div class="modal-top">
+        <div>
+          <div id="modalCounter"></div>
+          <div class="modal-status">Keys: A/D or ←/→ next-prev, H hide data, I import, O file, P post, Space play/pause, Esc close</div>
+        </div>
+        <div class="modal-controls">
+          <button id="modalSidebarToggle" type="button" class="modal-btn">Hide Data</button>
+          <button id="modalImport" type="button" class="modal-btn">Import To Library</button>
+          <button id="modalOpenFile" type="button" class="modal-btn">Open File</button>
+          <button id="modalOpenPost" type="button" class="modal-btn">Open Post</button>
+          <button id="modalPrev" type="button" class="modal-btn">Previous</button>
+          <button id="modalNext" type="button" class="modal-btn">Next</button>
+          <button id="modalClose" type="button" class="modal-btn">Close</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="modal-stage">
+          <img id="modalImage" class="modal-image" alt="">
+          <video id="modalVideo" class="modal-video" controls loop></video>
+          <div id="modalToast" class="toast"></div>
+        </div>
+        <aside class="modal-sidebar">
+          <div id="modalMeta" class="modal-meta"></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const requestUrl = {{ url_for('lookup_api_route') | tojson }};
+      const importUrl = {{ url_for('lookup_import_route') | tojson }};
+      const form = document.getElementById("apiExplorerForm");
+      const endpointField = document.getElementById("endpoint");
+      const tagsField = document.getElementById("tags");
+      const searchQueryField = document.getElementById("searchQuery");
+      const poolIdField = document.getElementById("poolId");
+      const pageField = document.getElementById("page");
+      const limitField = document.getElementById("limit");
+      const resultGrid = document.getElementById("resultGrid");
+      const resultSummary = document.getElementById("resultSummary");
+      const resultStatus = document.getElementById("resultStatus");
+      const requestMeta = document.getElementById("requestMeta");
+      const rawJson = document.getElementById("rawJson");
+      const refreshButton = document.getElementById("refreshRequest");
+      const modal = document.getElementById("apiModal");
+      const modalShell = modal.querySelector(".modal-shell");
+      const modalCounter = document.getElementById("modalCounter");
+      const modalImage = document.getElementById("modalImage");
+      const modalVideo = document.getElementById("modalVideo");
+      const modalMeta = document.getElementById("modalMeta");
+      const modalSidebarToggleBtn = document.getElementById("modalSidebarToggle");
+      const modalImportBtn = document.getElementById("modalImport");
+      const modalOpenFileBtn = document.getElementById("modalOpenFile");
+      const modalOpenPostBtn = document.getElementById("modalOpenPost");
+      const modalPrevBtn = document.getElementById("modalPrev");
+      const modalNextBtn = document.getElementById("modalNext");
+      const modalCloseBtn = document.getElementById("modalClose");
+      const modalToast = document.getElementById("modalToast");
+      let lastQuery = null;
+      let modalPosts = [];
+      let modalIndex = 0;
+      let modalOpen = false;
+      let modalSidebarVisible = true;
+
+      const escapeHtml = (value) => String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+
+      const formatDate = (value) => value ? String(value).replace("T", " ").replace("Z", " UTC") : "";
+
+      const formatBytes = (bytes) => {
+        const numeric = Number(bytes);
+        if (!Number.isFinite(numeric) || numeric <= 0) return "";
+        const units = ["B", "KB", "MB", "GB", "TB"];
+        const idx = Math.min(Math.floor(Math.log(numeric) / Math.log(1024)), units.length - 1);
+        const value = numeric / Math.pow(1024, idx);
+        return value.toFixed(value >= 10 || idx === 0 ? 0 : 1) + " " + units[idx];
+      };
+
+      const setStatus = (message, tone = "") => {
+        resultStatus.textContent = message || "";
+        resultStatus.className = "status-line" + (tone ? " " + tone : "");
+      };
+
+      const applyModalSidebarState = () => {
+        modalShell.classList.toggle("sidebar-hidden", !modalSidebarVisible);
+        modalSidebarToggleBtn.textContent = modalSidebarVisible ? "Hide Data" : "Show Data";
+      };
+
+      const updateFieldVisibility = () => {
+        const endpoint = endpointField.value;
+        poolIdField.closest(".field").style.display = endpoint === "pool" ? "flex" : "none";
+        searchQueryField.closest(".field").style.display = endpoint === "pools" ? "flex" : "none";
+      };
+
+      const renderRequestMeta = (request) => {
+        if (!request) {
+          requestMeta.innerHTML = '<div class="empty-state empty-state-dark">No request yet.</div>';
+          return;
+        }
+        const queryEntries = Object.entries(request.query || {});
+        requestMeta.innerHTML = `
+          <div class="meta-block"><div class="meta-label">Endpoint</div><div class="meta-value">${escapeHtml(request.endpoint || "")}</div></div>
+          <div class="meta-block"><div class="meta-label">Path</div><div class="meta-value">${escapeHtml(request.path || "")}</div></div>
+          <div class="meta-block"><div class="meta-label">URL</div><div class="meta-value">${escapeHtml(request.url || "")}</div></div>
+          <div class="meta-block"><div class="meta-label">Query Params</div><div class="meta-value">${queryEntries.length ? queryEntries.map(([key, value]) => `<div><code>${escapeHtml(key)}</code>: ${escapeHtml(value)}</div>`).join("") : "None"}</div></div>
+        `;
+      };
+
+      const renderPostCard = (post) => {
+        const previewUrl = post.preview && post.preview.url ? post.preview.url : (post.sample && post.sample.url ? post.sample.url : "");
+        const fileUrl = post.file && post.file.url ? post.file.url : "";
+        const tags = post.tags || {};
+        const generalTags = Array.isArray(tags.general) ? tags.general.slice(0, 8) : [];
+        const artistTags = Array.isArray(tags.artist) ? tags.artist.slice(0, 3) : [];
+        return `
+          <article class="result-card">
+            ${previewUrl ? `<a class="preview-wrap" href="${escapeHtml(fileUrl || previewUrl)}" target="_blank" rel="noreferrer"><img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(post.id)}"></a>` : '<div class="preview-wrap"></div>'}
+            <div class="result-card-body">
+              <div class="result-card-title">Post #${escapeHtml(post.id)}</div>
+              <div class="result-card-text">Rating: ${escapeHtml(post.rating || "")} · Score: ${escapeHtml(post.score && post.score.total)} · Favs: ${escapeHtml(post.fav_count)}</div>
+              <div class="result-card-text">Created: ${escapeHtml(formatDate(post.created_at))}</div>
+              <div class="result-card-text">Uploader: ${escapeHtml(post.uploader_name || post.uploader_id || "")}</div>
+              <div class="result-card-text">File: ${escapeHtml(post.file && post.file.ext || "")} ${escapeHtml(post.file && post.file.width ? `${post.file.width}x${post.file.height}` : "")} ${escapeHtml(formatBytes(post.file && post.file.size))}</div>
+              <div class="card-actions">
+                <button type="button" class="card-btn" data-action="open-modal" data-post-id="${escapeHtml(post.id)}">Open</button>
+                <button type="button" class="card-btn secondary" data-action="import-post" data-post-id="${escapeHtml(post.id)}">Import</button>
+              </div>
+              ${artistTags.length ? `<div class="tag-row">${artistTags.map((tag) => `<span class="tag-pill">artist:${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
+              ${generalTags.length ? `<div class="tag-row">${generalTags.map((tag) => `<span class="tag-pill">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
+            </div>
+          </article>
+        `;
+      };
+
+      const renderPoolCard = (pool) => {
+        const ids = Array.isArray(pool.post_ids) ? pool.post_ids : [];
+        return `
+          <article class="result-card">
+            <div class="result-card-body">
+              <div class="result-card-title">Pool #${escapeHtml(pool.id)}${pool.name ? ` · ${escapeHtml(pool.name)}` : ""}</div>
+              <div class="result-card-text">Posts: ${escapeHtml(ids.length || pool.post_count || 0)} · Category: ${escapeHtml(pool.category || "")}</div>
+              <div class="result-card-text">Updated: ${escapeHtml(formatDate(pool.updated_at))}</div>
+              <div class="result-card-text">${escapeHtml(pool.description || "No description.")}</div>
+              ${ids.length ? `<div class="tag-row">${ids.slice(0, 12).map((id) => `<span class="tag-pill">post:${escapeHtml(id)}</span>`).join("")}</div>` : ""}
+            </div>
+          </article>
+        `;
+      };
+
+      const normalizeItems = (endpoint, data) => {
+        if ((endpoint === "posts" || endpoint === "favorites") && data && Array.isArray(data.posts)) return data.posts;
+        if (endpoint === "pools" && Array.isArray(data)) return data;
+        if (endpoint === "pool" && data && typeof data === "object") return [data];
+        if (Array.isArray(data)) return data;
+        return data ? [data] : [];
+      };
+
+      const currentModalPost = () => modalPosts[modalIndex] || null;
+
+      const showToast = (message) => {
+        modalToast.textContent = message;
+        modalToast.style.display = "block";
+        window.setTimeout(() => {
+          modalToast.style.display = "none";
+        }, 1800);
+      };
+
+      const renderModalMeta = (post) => {
+        const tags = post.tags || {};
+        const groups = ["artist", "copyright", "character", "species", "general", "meta", "lore"];
+        const tagGroups = groups
+          .filter((group) => Array.isArray(tags[group]) && tags[group].length)
+          .map((group) => `<div class="modal-meta-group"><div class="modal-meta-label">${escapeHtml(group)}</div><div class="modal-tag-list">${tags[group].slice(0, group === "general" ? 24 : 10).map((tag) => `<span class="modal-tag">${escapeHtml(tag)}</span>`).join("")}</div></div>`)
+          .join("");
+        const file = post.file || {};
+        const score = post.score || {};
+        const postUrl = post.id ? `https://e621.net/posts/${post.id}` : "";
+        modalMeta.innerHTML = `
+          <div class="modal-meta-group">
+            <div class="modal-meta-label">Post</div>
+            <div>Post #${escapeHtml(post.id)}${postUrl ? ` · <a href="${escapeHtml(postUrl)}" target="_blank" rel="noreferrer">open</a>` : ""}</div>
+            <div>Created: ${escapeHtml(formatDate(post.created_at))}</div>
+            <div>Uploader: ${escapeHtml(post.uploader_name || post.uploader_id || "")}</div>
+            <div>Rating: ${escapeHtml(post.rating || "")} · Score: ${escapeHtml(score.total)} · Favs: ${escapeHtml(post.fav_count)}</div>
+            <div>File: ${escapeHtml(file.ext || "")} ${escapeHtml(file.width ? `${file.width}x${file.height}` : "")} ${escapeHtml(formatBytes(file.size))}</div>
+          </div>
+          ${post.description ? `<div class="modal-meta-group"><div class="modal-meta-label">Description</div><div>${escapeHtml(post.description)}</div></div>` : ""}
+          ${tagGroups}
+        `;
+      };
+
+      const isVideoPost = (post) => {
+        const ext = String(post.file && post.file.ext || "").toLowerCase();
+        return ["webm", "mp4", "mov", "mkv"].includes(ext);
+      };
+
+      const renderModal = () => {
+        const post = currentModalPost();
+        if (!post) return;
+        modalCounter.textContent = `${modalIndex + 1} / ${modalPosts.length}`;
+        renderModalMeta(post);
+        const fileUrl = post.file && post.file.url ? post.file.url : "";
+        if (isVideoPost(post) && fileUrl) {
+          modalImage.style.display = "none";
+          modalImage.removeAttribute("src");
+          modalVideo.src = fileUrl;
+          modalVideo.style.display = "block";
+          modalVideo.load();
+        } else {
+          modalVideo.pause();
+          modalVideo.removeAttribute("src");
+          modalVideo.style.display = "none";
+          modalImage.src = fileUrl || (post.sample && post.sample.url) || (post.preview && post.preview.url) || "";
+          modalImage.style.display = "block";
+        }
+      };
+
+      const openModalAt = (postId) => {
+        const index = modalPosts.findIndex((post) => String(post.id) === String(postId));
+        if (index < 0) return;
+        modalIndex = index;
+        modalOpen = true;
+        modal.classList.add("open");
+        modal.setAttribute("aria-hidden", "false");
+        applyModalSidebarState();
+        renderModal();
+      };
+
+      const closeModal = () => {
+        modalOpen = false;
+        modal.classList.remove("open");
+        modal.setAttribute("aria-hidden", "true");
+        modalVideo.pause();
+        modalVideo.removeAttribute("src");
+        modalToast.style.display = "none";
+      };
+
+      const modalPrev = () => {
+        if (!modalPosts.length) return;
+        modalIndex = (modalIndex - 1 + modalPosts.length) % modalPosts.length;
+        renderModal();
+      };
+
+      const modalNext = () => {
+        if (!modalPosts.length) return;
+        modalIndex = (modalIndex + 1) % modalPosts.length;
+        renderModal();
+      };
+
+      const openCurrentFile = () => {
+        const post = currentModalPost();
+        const fileUrl = post && post.file && post.file.url;
+        if (fileUrl) window.open(fileUrl, "_blank", "noopener,noreferrer");
+      };
+
+      const openCurrentPost = () => {
+        const post = currentModalPost();
+        if (post && post.id) window.open(`https://e621.net/posts/${post.id}`, "_blank", "noopener,noreferrer");
+      };
+
+      const importPost = async (post, button = null) => {
+        if (!post) return;
+        if (button) button.disabled = true;
+        modalImportBtn.disabled = true;
+        try {
+          const response = await fetch(importUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ post })
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.ok) {
+            showToast(payload.message || "Import failed");
+            return;
+          }
+          showToast(payload.message || "Imported");
+        } catch (_) {
+          showToast("Import failed");
+        } finally {
+          if (button) button.disabled = false;
+          modalImportBtn.disabled = false;
+        }
+      };
+
+      const renderResults = (endpoint, data) => {
+        const items = normalizeItems(endpoint, data);
+        modalPosts = (endpoint === "posts" || endpoint === "favorites") ? items.filter((item) => item && item.file && item.file.url) : [];
+        if (!items.length) {
+          resultGrid.innerHTML = '<div class="empty-state">No items returned for this query.</div>';
+          return 0;
+        }
+        resultGrid.innerHTML = items.map((item, index) => {
+          if (endpoint === "posts" || endpoint === "favorites") return renderPostCard(item);
+          if (endpoint === "pools" || endpoint === "pool") return renderPoolCard(item);
+          return `<article class="result-card"><div class="result-card-body"><div class="result-card-title">Item ${index + 1}</div><div class="result-card-text">${escapeHtml(JSON.stringify(item, null, 2).slice(0, 400))}</div></div></article>`;
+        }).join("");
+        return items.length;
+      };
+
+      const currentQuery = () => ({
+        endpoint: endpointField.value,
+        tags: tagsField.value.trim(),
+        search_query: searchQueryField.value.trim(),
+        pool_id: poolIdField.value.trim(),
+        page: pageField.value.trim(),
+        limit: limitField.value.trim()
+      });
+
+      const setLoading = (loading) => {
+        form.querySelector('button[type="submit"]').disabled = loading;
+        refreshButton.disabled = loading || !lastQuery;
+      };
+
+      const executeQuery = async (query, isRefresh = false) => {
+        lastQuery = query;
+        setLoading(true);
+        setStatus(isRefresh ? "Refreshing..." : "Loading...", "warn");
+        resultSummary.textContent = "Waiting for API response...";
+        try {
+          const response = await fetch(requestUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(query)
+          });
+          const payload = await response.json().catch(() => ({}));
+          rawJson.textContent = JSON.stringify(payload.data ?? payload, null, 2);
+          renderRequestMeta(payload.request);
+          if (!response.ok || !payload.ok) {
+            setStatus(payload.message || "Request failed", "error");
+            resultSummary.textContent = payload.http_status ? `HTTP ${payload.http_status}` : "Request failed";
+            resultGrid.innerHTML = '<div class="empty-state">The API did not return a successful response.</div>';
+            return;
+          }
+          const count = renderResults(query.endpoint, payload.data);
+          setStatus(`Loaded ${count} item${count === 1 ? "" : "s"} from ${query.endpoint}.`, "ok");
+          resultSummary.textContent = `HTTP ${payload.http_status} · ${count} item${count === 1 ? "" : "s"} returned`;
+        } catch (error) {
+          rawJson.textContent = String(error);
+          setStatus("Request failed", "error");
+          resultSummary.textContent = "Unable to reach the API proxy.";
+          resultGrid.innerHTML = '<div class="empty-state">The request could not be completed.</div>';
+          renderRequestMeta(null);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        executeQuery(currentQuery(), false);
+      });
+      refreshButton.addEventListener("click", () => {
+        if (lastQuery) executeQuery(lastQuery, true);
+      });
+      resultGrid.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-action]");
+        if (!button) return;
+        const action = button.dataset.action;
+        const postId = button.dataset.postId;
+        const post = modalPosts.find((item) => String(item.id) === String(postId));
+        if (action === "open-modal") {
+          openModalAt(postId);
+          return;
+        }
+        if (action === "import-post") {
+          importPost(post, button);
+        }
+      });
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) closeModal();
+      });
+      modalCloseBtn.addEventListener("click", closeModal);
+      modalPrevBtn.addEventListener("click", modalPrev);
+      modalNextBtn.addEventListener("click", modalNext);
+      modalSidebarToggleBtn.addEventListener("click", () => {
+        modalSidebarVisible = !modalSidebarVisible;
+        applyModalSidebarState();
+      });
+      modalOpenFileBtn.addEventListener("click", openCurrentFile);
+      modalOpenPostBtn.addEventListener("click", openCurrentPost);
+      modalImportBtn.addEventListener("click", () => importPost(currentModalPost()));
+      window.addEventListener("keydown", (event) => {
+        if (!modalOpen) return;
+        const t = event.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        const key = event.key.toLowerCase();
+        if (key === "escape") {
+          event.preventDefault();
+          closeModal();
+          return;
+        }
+        if (key === "arrowleft" || key === "a") {
+          event.preventDefault();
+          modalPrev();
+          return;
+        }
+        if (key === "arrowright" || key === "d") {
+          event.preventDefault();
+          modalNext();
+          return;
+        }
+        if (key === "i") {
+          event.preventDefault();
+          importPost(currentModalPost());
+          return;
+        }
+        if (key === "h") {
+          event.preventDefault();
+          modalSidebarVisible = !modalSidebarVisible;
+          applyModalSidebarState();
+          return;
+        }
+        if (key === "o") {
+          event.preventDefault();
+          openCurrentFile();
+          return;
+        }
+        if (key === "p") {
+          event.preventDefault();
+          openCurrentPost();
+          return;
+        }
+        if (key === " " && modalVideo.style.display !== "none") {
+          event.preventDefault();
+          if (modalVideo.paused) {
+            modalVideo.play().catch(() => {});
+          } else {
+            modalVideo.pause();
+          }
+        }
+      });
+      endpointField.addEventListener("change", updateFieldVisibility);
+      updateFieldVisibility();
+    })();
+  </script>
+</body>
+</html>

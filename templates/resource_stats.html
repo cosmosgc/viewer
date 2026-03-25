@@ -54,6 +54,8 @@
       <h2 style="margin:0;">Resource Stats</h2>
       <span class="badge">{{ chart_data.total }} files in current view</span>
       <a href="{{ url_for('index') }}">Gallery</a>
+      <a href="{{ url_for('lookup_view') }}">Lookup</a>
+      <a href="{{ url_for('watch_view') }}">Watch</a>
       <a href="{{ url_for('pinned') }}">Pinned ({{ pinned_count }})</a>
       <a href="{{ url_for('upload_resources') }}">Upload</a>
       <a href="{{ url_for('ingest_resources') }}">Ingest Folder ({{ inbox_count }})</a>

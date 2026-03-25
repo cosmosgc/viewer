@@ -22,6 +22,8 @@
     <h2 style="margin:0;">Pinned Resources</h2>
     <span class="badge">{{ total }} files</span>
     <a href="{{ url_for('index') }}">Back to Search</a>
+    <a href="{{ url_for('lookup_view') }}">Lookup</a>
+    <a href="{{ url_for('watch_view') }}">Watch</a>
     <a href="{{ url_for('stats_view') }}">Stats</a>
     <a href="{{ url_for('upload_resources') }}">Upload</a>
     <a href="{{ url_for('ingest_resources') }}">Ingest Folder ({{ inbox_count }})</a>

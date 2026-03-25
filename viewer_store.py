@@ -1,17 +1,64 @@
 import datetime as dt
 import json
 import os
+import uuid
 from collections import defaultdict
 from pathlib import Path
 
 from resource_lookup import ReverseSearchService
-from viewer_context import INBOX_DIR, INBOX_MARKER, PINNED_JSON, RESULT_DIR
+from viewer_context import INBOX_DIR, INBOX_MARKER, PINNED_JSON, RESULT_DIR, WATCH_DIR, WATCH_JSON
 from viewer_support import list_subdirs, media_type_for_ext, parse_dt_from_name
 
 
 def ensure_inbox_dir():
     INBOX_DIR.mkdir(parents=True, exist_ok=True)
     INBOX_MARKER.touch(exist_ok=True)
+
+
+def ensure_watch_dir():
+    WATCH_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def load_watches():
+    ensure_watch_dir()
+    if not WATCH_JSON.exists():
+        return []
+    try:
+        with open(WATCH_JSON, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except Exception:
+        return []
+    watches = payload.get("watches") if isinstance(payload, dict) else payload
+    if not isinstance(watches, list):
+        return []
+    cleaned = []
+    for item in watches:
+        if not isinstance(item, dict):
+            continue
+        watch_id = str(item.get("id") or uuid.uuid4().hex)
+        tags = str(item.get("tags") or "").strip()
+        if not tags:
+            continue
+        cleaned.append(
+            {
+                "id": watch_id,
+                "tags": tags,
+                "last_seen_at": str(item.get("last_seen_at") or ""),
+                "created_at": str(item.get("created_at") or ""),
+                "updated_at": str(item.get("updated_at") or ""),
+            }
+        )
+    return cleaned
+
+
+def save_watches(watches):
+    ensure_watch_dir()
+    payload = {
+        "watches": watches,
+        "updated_at": dt.datetime.now().isoformat(timespec="seconds"),
+    }
+    with open(WATCH_JSON, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
 
 
 def load_pins():
