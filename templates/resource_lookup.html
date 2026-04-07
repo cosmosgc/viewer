@@ -59,6 +59,11 @@
     .status-line.error { color: var(--error); }
     .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
     .result-card { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); box-shadow: var(--shadow); }
+    .result-card.type-image { border-color: #8fc4ff; box-shadow: var(--shadow), 0 0 0 1px #d9ecff inset; }
+    .result-card.type-gif { border-color: #d7a5ff; box-shadow: var(--shadow), 0 0 0 1px #f0dfff inset; }
+    .result-card.type-video { border-color: #ffb37a; box-shadow: var(--shadow), 0 0 0 1px #ffe5d2 inset; }
+    .result-card.type-flash { border-color: #ffd166; box-shadow: var(--shadow), 0 0 0 1px #fff1c7 inset; }
+    .result-card.type-file { border-color: #c7d2e4; box-shadow: var(--shadow), 0 0 0 1px #eef3f9 inset; }
     .result-card-body { padding: 12px; display: grid; gap: 8px; }
     .result-card-title { font-size: 14px; font-weight: 700; word-break: break-word; }
     .result-card-text { font-size: 12px; color: var(--muted); line-height: 1.4; word-break: break-word; }
@@ -69,6 +74,7 @@
     .preview-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
     .tag-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 999px; background: #eef4ff; border: 1px solid #d5e2fb; color: #244377; font-size: 11px; }
+    .type-pill { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; background: #e9f7ee; border: 1px solid #bfe3ca; color: #21653a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
     .request-meta { display: grid; gap: 10px; font-size: 12px; }
     .meta-block { border: 1px solid #243452; border-radius: 12px; padding: 10px; background: rgba(255, 255, 255, 0.03); }
     .meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #9fb3d6; margin-bottom: 6px; }
@@ -86,6 +92,8 @@
     .modal-shell.sidebar-hidden .modal-body { grid-template-columns: minmax(0, 1fr) 0; }
     .modal-stage { min-height: 0; height: 100%; display: grid; place-items: center; border-radius: 16px; overflow: hidden; padding: 10px; background: radial-gradient(circle at top, #17253f, #09111d 72%); }
     .modal-image, .modal-video { width: auto; height: auto; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
+    .modal-fallback { max-width: 520px; padding: 18px; border-radius: 16px; background: rgba(9, 17, 29, 0.72); border: 1px solid #30476f; color: #eef4ff; text-align: center; display: none; }
+    .modal-fallback a { color: #8fc0ff; }
     .modal-sidebar { min-height: 0; overflow: auto; background: linear-gradient(180deg, #162236 0%, #0f1726 100%); border: 1px solid #22314d; border-radius: 16px; padding: 14px; color: #eef4ff; }
     .modal-shell.sidebar-hidden .modal-sidebar { overflow: hidden; padding: 0; border-width: 0; opacity: 0; }
     .modal-meta { display: grid; gap: 10px; font-size: 13px; }
@@ -245,6 +253,7 @@
         <div class="modal-stage">
           <img id="modalImage" class="modal-image" alt="">
           <video id="modalVideo" class="modal-video" controls loop></video>
+          <div id="modalFallback" class="modal-fallback"></div>
           <div id="modalToast" class="toast"></div>
         </div>
         <aside class="modal-sidebar">
@@ -276,6 +285,7 @@
       const modalCounter = document.getElementById("modalCounter");
       const modalImage = document.getElementById("modalImage");
       const modalVideo = document.getElementById("modalVideo");
+      const modalFallback = document.getElementById("modalFallback");
       const modalMeta = document.getElementById("modalMeta");
       const modalSidebarToggleBtn = document.getElementById("modalSidebarToggle");
       const modalImportBtn = document.getElementById("modalImport");
@@ -308,6 +318,24 @@
         const value = numeric / Math.pow(1024, idx);
         return value.toFixed(value >= 10 || idx === 0 ? 0 : 1) + " " + units[idx];
       };
+
+      const getPostFileExt = (post) => String(post && post.file && post.file.ext || "").toLowerCase();
+
+      const classifyResourceType = (ext) => {
+        if (!ext) return { kind: "file", label: "File" };
+        if (ext === "gif") return { kind: "gif", label: "GIF" };
+        if (["swf"].includes(ext)) return { kind: "flash", label: "Flash" };
+        if (["webm", "mp4", "mov", "mkv"].includes(ext)) return { kind: "video", label: "Video" };
+        if (["jpg", "jpeg", "png", "webp", "bmp", "avif", "jxl"].includes(ext)) return { kind: "image", label: "Image" };
+        return { kind: "file", label: ext.toUpperCase() };
+      };
+
+      const resourceTypeMarkup = (post) => {
+        const type = classifyResourceType(getPostFileExt(post));
+        return `<span class="type-pill">${escapeHtml(type.label)}</span>`;
+      };
+
+      const resultCardTypeClass = (post) => `type-${classifyResourceType(getPostFileExt(post)).kind}`;
 
       const setStatus = (message, tone = "") => {
         resultStatus.textContent = message || "";
@@ -346,10 +374,10 @@
         const generalTags = Array.isArray(tags.general) ? tags.general.slice(0, 8) : [];
         const artistTags = Array.isArray(tags.artist) ? tags.artist.slice(0, 3) : [];
         return `
-          <article class="result-card">
+          <article class="result-card ${resultCardTypeClass(post)}">
             ${previewUrl ? `<a class="preview-wrap" href="${escapeHtml(fileUrl || previewUrl)}" target="_blank" rel="noreferrer"><img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(post.id)}"></a>` : '<div class="preview-wrap"></div>'}
             <div class="result-card-body">
-              <div class="result-card-title">Post #${escapeHtml(post.id)}</div>
+              <div class="result-card-title">Post #${escapeHtml(post.id)} ${resourceTypeMarkup(post)}</div>
               <div class="result-card-text">Rating: ${escapeHtml(post.rating || "")} · Score: ${escapeHtml(post.score && post.score.total)} · Favs: ${escapeHtml(post.fav_count)}</div>
               <div class="result-card-text">Created: ${escapeHtml(formatDate(post.created_at))}</div>
               <div class="result-card-text">Uploader: ${escapeHtml(post.uploader_name || post.uploader_id || "")}</div>
@@ -416,15 +444,11 @@
             <div>Uploader: ${escapeHtml(post.uploader_name || post.uploader_id || "")}</div>
             <div>Rating: ${escapeHtml(post.rating || "")} · Score: ${escapeHtml(score.total)} · Favs: ${escapeHtml(post.fav_count)}</div>
             <div>File: ${escapeHtml(file.ext || "")} ${escapeHtml(file.width ? `${file.width}x${file.height}` : "")} ${escapeHtml(formatBytes(file.size))}</div>
+            <div>Type: ${escapeHtml(classifyResourceType(getPostFileExt(post)).label)}</div>
           </div>
           ${post.description ? `<div class="modal-meta-group"><div class="modal-meta-label">Description</div><div>${escapeHtml(post.description)}</div></div>` : ""}
           ${tagGroups}
         `;
-      };
-
-      const isVideoPost = (post) => {
-        const ext = String(post.file && post.file.ext || "").toLowerCase();
-        return ["webm", "mp4", "mov", "mkv"].includes(ext);
       };
 
       const renderModal = () => {
@@ -433,18 +457,32 @@
         modalCounter.textContent = `${modalIndex + 1} / ${modalPosts.length}`;
         renderModalMeta(post);
         const fileUrl = post.file && post.file.url ? post.file.url : "";
-        if (isVideoPost(post) && fileUrl) {
+        const resourceType = classifyResourceType(getPostFileExt(post));
+        modalFallback.style.display = "none";
+        modalFallback.innerHTML = "";
+        if (resourceType.kind === "video" && fileUrl) {
           modalImage.style.display = "none";
           modalImage.removeAttribute("src");
+          modalFallback.style.display = "none";
           modalVideo.src = fileUrl;
           modalVideo.style.display = "block";
           modalVideo.load();
-        } else {
+        } else if (["image", "gif"].includes(resourceType.kind)) {
           modalVideo.pause();
           modalVideo.removeAttribute("src");
           modalVideo.style.display = "none";
           modalImage.src = fileUrl || (post.sample && post.sample.url) || (post.preview && post.preview.url) || "";
           modalImage.style.display = "block";
+        } else {
+          modalVideo.pause();
+          modalVideo.removeAttribute("src");
+          modalVideo.style.display = "none";
+          modalImage.style.display = "none";
+          modalImage.removeAttribute("src");
+          modalFallback.innerHTML = fileUrl
+            ? `Preview unavailable for ${escapeHtml(resourceType.label)} files. <a href="${escapeHtml(fileUrl)}" target="_blank" rel="noreferrer">Open the original file</a>.`
+            : `Preview unavailable for ${escapeHtml(resourceType.label)} files.`;
+          modalFallback.style.display = "block";
         }
       };
 

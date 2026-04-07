@@ -216,11 +216,20 @@ def register_routes(flask_app):
         if not tags:
             return jsonify({"ok": False, "message": "Tags are required"}), 400
 
+        try:
+            page_num = max(1, int(page))
+        except (TypeError, ValueError):
+            page_num = 1
+        try:
+            limit_num = max(1, int(limit))
+        except (TypeError, ValueError):
+            limit_num = 40
+
         payload, status = lookup_service.fetch_api_listing(
             endpoint_key="posts",
             tags=tags,
-            page=page,
-            limit=limit,
+            page=str(page_num),
+            limit=str(limit_num),
         )
         if status != 200 or not payload.get("ok"):
             return jsonify(payload), status
@@ -235,6 +244,7 @@ def register_routes(flask_app):
             post["library_state"] = watch_import_state(post)
             filtered_posts.append(post)
 
+        hit_last_seen_boundary = len(filtered_posts) < len(posts if isinstance(posts, list) else [])
         filtered_posts.sort(
             key=lambda post: lookup_service.parse_post_created_at(post.get("created_at")) or dt.datetime.min
         )
@@ -242,6 +252,11 @@ def register_routes(flask_app):
         payload["watch"] = {
             "tags": tags,
             "last_seen_at": last_seen_at,
+            "page": page_num,
+            "limit": limit_num,
+            "has_prev_page": page_num > 1,
+            "has_next_page": len(posts if isinstance(posts, list) else []) >= limit_num and not hit_last_seen_boundary,
+            "source_count": len(posts if isinstance(posts, list) else []),
             "returned_count": len(filtered_posts),
         }
         return jsonify(payload), 200
