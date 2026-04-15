@@ -7,7 +7,7 @@
   <style>
     body { margin: 0; font-family: Segoe UI, Arial, sans-serif; background: #eef3fb; color: #172033; }
     a { color: #1262ff; text-decoration: none; }
-    input, button { border-radius: 10px; border: 1px solid #c9d3e5; padding: 10px 12px; font: inherit; }
+    input, button, select { border-radius: 10px; border: 1px solid #c9d3e5; padding: 10px 12px; font: inherit; }
     button { background: #111827; color: #fff; border: none; cursor: pointer; }
     button:disabled { cursor: wait; opacity: 0.7; }
     .wrap { max-width: 1480px; margin: 0 auto; padding: 20px; }
@@ -37,9 +37,24 @@
     .small-btn, .card-btn, .pill-btn { padding: 7px 10px; border-radius: 999px; font-size: 12px; }
     .watch-card-actions .danger-btn { margin-left: auto; }
     .feed-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 12px 0 10px; }
+    .feed-toolbar-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .feed-pagination { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .page-indicator { font-size: 12px; color: #64748b; }
-    .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .view-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; padding: 14px; margin-bottom: 12px; background: linear-gradient(180deg, #f7faff 0%, #edf4ff 100%); border: 1px solid #d8e6fb; border-radius: 16px; }
+    .view-options .field { margin-bottom: 0; }
+    .toggle-option { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 10px 12px; background: #fff; border: 1px solid #d6deec; border-radius: 12px; }
+    .toggle-option input { margin: 0; }
+    .result-grid { --grid-min: 240px; --grid-gap: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--grid-min), 1fr)); gap: var(--grid-gap); }
+    .result-grid.columns-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .result-grid.columns-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .result-grid.columns-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .result-grid.columns-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .result-grid.columns-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .result-grid.density-compact { --grid-gap: 10px; }
+    .result-grid.density-compact .result-card-body { padding: 10px; gap: 6px; }
+    .result-grid.density-compact .result-card-text { font-size: 11px; }
+    .result-grid.density-cozy { --grid-gap: 16px; }
+    .result-grid.density-cozy .result-card-body { padding: 14px; gap: 10px; }
     .result-card { border: 1px solid #d6deec; border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, #fff 0%, #f8fbff 100%); box-shadow: 0 14px 36px rgba(15,23,42,.08); }
     .result-card.type-image { border-color: #8fc4ff; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #d9ecff inset; }
     .result-card.type-gif { border-color: #d7a5ff; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #f0dfff inset; }
@@ -48,7 +63,10 @@
     .result-card.type-file { border-color: #c7d2e4; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #eef3f9 inset; }
     .result-card.imported { border-color: #abd9bc; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 2px #e3f5e8 inset; }
     .preview-wrap { display: block; width: 100%; aspect-ratio: 4 / 3; background: linear-gradient(180deg, #dfe8f6 0%, #ced8ea 100%); border: none; padding: 0; }
-    .preview-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .preview-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .result-grid.preview-cover .preview-wrap img { object-fit: cover; }
+    .result-grid.ratio-square .preview-wrap { aspect-ratio: 1 / 1; }
+    .result-grid.ratio-wide .preview-wrap { aspect-ratio: 16 / 10; }
     .result-card-body { padding: 12px; display: grid; gap: 8px; }
     .result-card-title { font-size: 14px; font-weight: 700; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .result-card-text { font-size: 12px; color: #64748b; line-height: 1.4; word-break: break-word; }
@@ -84,6 +102,7 @@
     .config-modal { width: min(94vw, 520px); background: #fff; border: 1px solid #d6deec; border-radius: 20px; box-shadow: 0 24px 60px rgba(15,23,42,.24); padding: 18px; }
     .config-title { margin: 0 0 4px; }
     .config-note { font-size: 12px; color: #64748b; margin-bottom: 14px; }
+    .hidden { display: none !important; }
     @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
     @media (max-width: 980px) { .modal-body { grid-template-columns: 1fr; } }
     @media (max-width: 640px) {
@@ -92,6 +111,11 @@
       .modal-controls { justify-content: flex-start; }
       .watch-card-actions .danger-btn { margin-left: 0; }
       .config-modal { padding: 16px; }
+      .result-grid.columns-2,
+      .result-grid.columns-3,
+      .result-grid.columns-4,
+      .result-grid.columns-5,
+      .result-grid.columns-6 { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -141,14 +165,74 @@
         <h3 style="margin:0 0 6px;">Missed Posts</h3>
         <div id="feedSummary" class="result-card-text" style="margin-bottom:10px;">Choose a watch and load missed posts sorted from oldest to newest.</div>
         <div class="feed-toolbar">
-          <div id="pageIndicator" class="page-indicator">Page 1</div>
-          <div class="feed-pagination">
-            <button id="feedPrevBtn" type="button" class="small-btn ghost-btn" disabled>Previous Page</button>
-            <button id="feedNextBtn" type="button" class="small-btn ghost-btn" disabled>Next Page</button>
+          <div class="feed-toolbar-main">
+            <div id="pageIndicatorTop" class="page-indicator">Page 1</div>
+            <button id="resetViewBtn" type="button" class="small-btn ghost-btn">Reset View</button>
           </div>
+          <div class="feed-pagination" data-pagination-group="top">
+            <button type="button" class="small-btn ghost-btn js-feed-first" disabled>First</button>
+            <button type="button" class="small-btn ghost-btn js-feed-prev" disabled>Previous Page</button>
+            <button type="button" class="small-btn ghost-btn js-feed-next" disabled>Next Page</button>
+          </div>
+        </div>
+        <div class="view-options">
+          <div class="field">
+            <label for="viewPageSize">Posts per page</label>
+            <select id="viewPageSize">
+              <option value="12">12</option>
+              <option value="24">24</option>
+              <option value="60" selected>60</option>
+              <option value="120">120</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="viewColumns">Columns</label>
+            <select id="viewColumns">
+              <option value="auto">Auto</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="viewPreviewFit">Preview fit</label>
+            <select id="viewPreviewFit">
+              <option value="contain" selected>Contain</option>
+              <option value="cover">Cover</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="viewPreviewRatio">Preview ratio</label>
+            <select id="viewPreviewRatio">
+              <option value="classic" selected>Classic 4:3</option>
+              <option value="square">Square</option>
+              <option value="wide">Wide</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="viewDensity">Card density</label>
+            <select id="viewDensity">
+              <option value="default" selected>Default</option>
+              <option value="compact">Compact</option>
+              <option value="cozy">Cozy</option>
+            </select>
+          </div>
+          <label class="toggle-option"><input id="viewShowTags" type="checkbox" checked> Show tag pills</label>
+          <label class="toggle-option"><input id="viewImportedOnly" type="checkbox"> Imported only</label>
+          <label class="toggle-option"><input id="viewUnimportedOnly" type="checkbox"> Unimported only</label>
         </div>
         <div id="feedStatus" class="status-line"></div>
         <div id="feedGrid" class="result-grid"><div class="empty-state">No watch feed loaded yet.</div></div>
+        <div class="feed-toolbar" style="margin-top:12px;">
+          <div id="pageIndicatorBottom" class="page-indicator">Page 1</div>
+          <div class="feed-pagination" data-pagination-group="bottom">
+            <button type="button" class="small-btn ghost-btn js-feed-first" disabled>First</button>
+            <button type="button" class="small-btn ghost-btn js-feed-prev" disabled>Previous Page</button>
+            <button type="button" class="small-btn ghost-btn js-feed-next" disabled>Next Page</button>
+          </div>
+        </div>
       </section>
     </div>
   </div>
@@ -206,7 +290,17 @@
       const deleteUrl = {{ url_for('watch_delete_route') | tojson }};
       const feedUrl = {{ url_for('watch_feed_route') | tojson }};
       const importUrl = {{ url_for('lookup_import_route') | tojson }};
-      const WATCH_PAGE_LIMIT = 60;
+      const SETTINGS_COOKIE = "resource_watch_prefs";
+      const DEFAULT_SETTINGS = {
+        pageSize: 60,
+        columns: "auto",
+        previewFit: "contain",
+        previewRatio: "classic",
+        density: "default",
+        showTags: true,
+        importedOnly: false,
+        unimportedOnly: false,
+      };
       const watchList = document.getElementById("watchList");
       const newWatchTags = document.getElementById("newWatchTags");
       const newWatchTimestamp = document.getElementById("newWatchTimestamp");
@@ -215,9 +309,19 @@
       const feedSummary = document.getElementById("feedSummary");
       const feedStatus = document.getElementById("feedStatus");
       const feedGrid = document.getElementById("feedGrid");
-      const pageIndicator = document.getElementById("pageIndicator");
-      const feedPrevBtn = document.getElementById("feedPrevBtn");
-      const feedNextBtn = document.getElementById("feedNextBtn");
+      const pageIndicators = [document.getElementById("pageIndicatorTop"), document.getElementById("pageIndicatorBottom")].filter(Boolean);
+      const feedFirstBtns = Array.from(document.querySelectorAll(".js-feed-first"));
+      const feedPrevBtns = Array.from(document.querySelectorAll(".js-feed-prev"));
+      const feedNextBtns = Array.from(document.querySelectorAll(".js-feed-next"));
+      const viewPageSize = document.getElementById("viewPageSize");
+      const viewColumns = document.getElementById("viewColumns");
+      const viewPreviewFit = document.getElementById("viewPreviewFit");
+      const viewPreviewRatio = document.getElementById("viewPreviewRatio");
+      const viewDensity = document.getElementById("viewDensity");
+      const viewShowTags = document.getElementById("viewShowTags");
+      const viewImportedOnly = document.getElementById("viewImportedOnly");
+      const viewUnimportedOnly = document.getElementById("viewUnimportedOnly");
+      const resetViewBtn = document.getElementById("resetViewBtn");
       const watchConfigModal = document.getElementById("watchConfigModal");
       const configWatchTags = document.getElementById("configWatchTags");
       const configWatchTimestamp = document.getElementById("configWatchTimestamp");
@@ -252,6 +356,7 @@
       let activeFeedPage = 1;
       let activeFeedHasPrev = false;
       let activeFeedHasNext = false;
+      let viewSettings = { ...DEFAULT_SETTINGS };
 
       const escapeHtml = (value) => String(value).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll("\"","&quot;").replaceAll("'","&#39;");
       const setStatus = (node, message, tone = "") => { node.textContent = message || ""; node.className = "status-line" + (tone ? " " + tone : ""); };
@@ -277,14 +382,64 @@
       const resourceTypeMarkup = (post) => `<span class="type-pill">${escapeHtml(classifyResourceType(getPostFileExt(post)).label)}</span>`;
       const resultCardTypeClass = (post) => `type-${classifyResourceType(getPostFileExt(post)).kind}`;
       const applyActiveWatch = () => document.querySelectorAll(".watch-card").forEach((c) => c.classList.toggle("active", c.dataset.watchId === activeWatchId));
+      const readCookie = (name) => {
+        const prefix = `${name}=`;
+        return document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(prefix))?.slice(prefix.length) || "";
+      };
+      const writeCookie = (name, value) => {
+        document.cookie = `${name}=${value}; path=/; max-age=2147483647; expires=Fri, 31 Dec 2099 23:59:59 GMT; SameSite=Lax`;
+      };
+      const saveViewSettings = () => {
+        writeCookie(SETTINGS_COOKIE, encodeURIComponent(JSON.stringify(viewSettings)));
+      };
+      const loadViewSettings = () => {
+        const raw = readCookie(SETTINGS_COOKIE);
+        if (!raw) return { ...DEFAULT_SETTINGS };
+        try {
+          const parsed = JSON.parse(decodeURIComponent(raw));
+          return { ...DEFAULT_SETTINGS, ...(parsed && typeof parsed === "object" ? parsed : {}) };
+        } catch (_) {
+          return { ...DEFAULT_SETTINGS };
+        }
+      };
+      const syncViewControls = () => {
+        viewPageSize.value = String(viewSettings.pageSize);
+        viewColumns.value = viewSettings.columns;
+        viewPreviewFit.value = viewSettings.previewFit;
+        viewPreviewRatio.value = viewSettings.previewRatio;
+        viewDensity.value = viewSettings.density;
+        viewShowTags.checked = Boolean(viewSettings.showTags);
+        viewImportedOnly.checked = Boolean(viewSettings.importedOnly);
+        viewUnimportedOnly.checked = Boolean(viewSettings.unimportedOnly);
+      };
+      const applyViewSettings = () => {
+        feedGrid.classList.remove("columns-2", "columns-3", "columns-4", "columns-5", "columns-6", "preview-cover", "ratio-square", "ratio-wide", "density-compact", "density-cozy");
+        if (viewSettings.columns !== "auto") feedGrid.classList.add(`columns-${viewSettings.columns}`);
+        if (viewSettings.previewFit === "cover") feedGrid.classList.add("preview-cover");
+        if (viewSettings.previewRatio === "square") feedGrid.classList.add("ratio-square");
+        if (viewSettings.previewRatio === "wide") feedGrid.classList.add("ratio-wide");
+        if (viewSettings.density === "compact") feedGrid.classList.add("density-compact");
+        if (viewSettings.density === "cozy") feedGrid.classList.add("density-cozy");
+      };
+      const updateViewSetting = (patch, { rerender = true, persist = true } = {}) => {
+        viewSettings = { ...viewSettings, ...patch };
+        syncViewControls();
+        applyViewSettings();
+        if (persist) saveViewSettings();
+        if (rerender) renderFeed();
+      };
       const updateFeedPagination = ({ page = 1, hasPrev = false, hasNext = false } = {}) => {
         activeFeedPage = page;
         activeFeedHasPrev = hasPrev;
         activeFeedHasNext = hasNext;
-        pageIndicator.textContent = `Page ${page}`;
-        feedPrevBtn.disabled = !activeWatchId || !hasPrev;
-        feedNextBtn.disabled = !activeWatchId || !hasNext;
+        pageIndicators.forEach((node) => { node.textContent = `Page ${page}`; });
+        feedFirstBtns.forEach((button) => { button.disabled = !activeWatchId || page <= 1; });
+        feedPrevBtns.forEach((button) => { button.disabled = !activeWatchId || !hasPrev; });
+        feedNextBtns.forEach((button) => { button.disabled = !activeWatchId || !hasNext; });
       };
+      viewSettings = loadViewSettings();
+      syncViewControls();
+      applyViewSettings();
       const defaultNowLocal = () => isoToLocalInput(new Date().toISOString());
       newWatchTimestamp.value = defaultNowLocal();
       const currentModalPost = () => modalPosts[modalIndex] || null;
@@ -330,7 +485,35 @@
         const postUrl = post.id ? `https://e621.net/posts/${post.id}` : "";
         const tags = (((post.tags || {}).general) || []).slice(0, 8);
         const importLabel = post.library_state && post.library_state.imported ? "Import Again" : "Import";
-        return `<article class="result-card ${resultCardTypeClass(post)}${post.library_state && post.library_state.imported ? " imported" : ""}" data-post-card-id="${escapeHtml(post.id)}">${previewUrl ? `<button type="button" class="preview-wrap" data-action="open-modal" data-post-id="${escapeHtml(post.id)}"><img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(post.id)}"></button>` : '<div class="preview-wrap"></div>'}<div class="result-card-body"><div class="result-card-title">Post #${escapeHtml(post.id)} ${resourceTypeMarkup(post)} ${importedStateMarkup(post)}</div><div class="result-card-text">Created: ${escapeHtml(formatDate(post.created_at))}</div><div class="result-card-text">Rating: ${escapeHtml(post.rating || "")} · Score: ${escapeHtml((post.score || {}).total)} · Favs: ${escapeHtml(post.fav_count)}</div>${importedDetailsMarkup(post)}<div class="card-actions"><button type="button" class="card-btn" data-action="open-modal" data-post-id="${escapeHtml(post.id)}">Open</button><a class="card-btn secondary-btn" href="${escapeHtml(postUrl)}" target="_blank" rel="noreferrer">Open Post</a><a class="card-btn secondary-btn" href="${escapeHtml(fileUrl || previewUrl)}" target="_blank" rel="noreferrer">Open File</a><button type="button" class="card-btn secondary-btn" data-action="import-post" data-post-id="${escapeHtml(post.id)}" data-import-label="${escapeHtml(importLabel)}">${escapeHtml(importLabel)}</button></div>${tags.length ? `<div class="tag-row">${tags.map((tag) => `<span class="tag-pill">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</div></article>`;
+        return `<article class="result-card ${resultCardTypeClass(post)}${post.library_state && post.library_state.imported ? " imported" : ""}" data-post-card-id="${escapeHtml(post.id)}">${previewUrl ? `<button type="button" class="preview-wrap" data-action="open-modal" data-post-id="${escapeHtml(post.id)}"><img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(post.id)}"></button>` : '<div class="preview-wrap"></div>'}<div class="result-card-body"><div class="result-card-title">Post #${escapeHtml(post.id)} ${resourceTypeMarkup(post)} ${importedStateMarkup(post)}</div><div class="result-card-text">Created: ${escapeHtml(formatDate(post.created_at))}</div><div class="result-card-text">Rating: ${escapeHtml(post.rating || "")} · Score: ${escapeHtml((post.score || {}).total)} · Favs: ${escapeHtml(post.fav_count)}</div>${importedDetailsMarkup(post)}<div class="card-actions"><button type="button" class="card-btn" data-action="open-modal" data-post-id="${escapeHtml(post.id)}">Open</button><a class="card-btn secondary-btn" href="${escapeHtml(postUrl)}" target="_blank" rel="noreferrer">Open Post</a><a class="card-btn secondary-btn" href="${escapeHtml(fileUrl || previewUrl)}" target="_blank" rel="noreferrer">Open File</a><button type="button" class="card-btn secondary-btn" data-action="import-post" data-post-id="${escapeHtml(post.id)}" data-import-label="${escapeHtml(importLabel)}">${escapeHtml(importLabel)}</button></div>${tags.length ? `<div class="tag-row${viewSettings.showTags ? "" : " hidden"}">${tags.map((tag) => `<span class="tag-pill">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</div></article>`;
+      };
+
+      const getVisiblePosts = () => {
+        if (!Array.isArray(modalPosts) || !modalPosts.length) return [];
+        return modalPosts.filter((post) => {
+          const imported = Boolean(post && post.library_state && post.library_state.imported);
+          if (viewSettings.importedOnly && !imported) return false;
+          if (viewSettings.unimportedOnly && imported) return false;
+          return true;
+        });
+      };
+
+      const updateFeedSummary = () => {
+        const card = activeWatchId ? document.querySelector(`.watch-card[data-watch-id="${CSS.escape(activeWatchId)}"]`) : null;
+        const tags = card ? (card.dataset.watchTags || "") : "";
+        const visiblePosts = getVisiblePosts();
+        if (!activeWatchId) {
+          feedSummary.textContent = "Choose a watch and load missed posts sorted from oldest to newest.";
+          return;
+        }
+        if (!modalPosts.length) {
+          feedSummary.textContent = activeFeedPage === 1 ? `No missed posts for ${tags}.` : `No missed posts on page ${activeFeedPage} for ${tags}.`;
+          return;
+        }
+        const filterBits = [];
+        if (viewSettings.importedOnly) filterBits.push("imported only");
+        if (viewSettings.unimportedOnly) filterBits.push("unimported only");
+        feedSummary.textContent = `${visiblePosts.length} visible of ${modalPosts.length} post${modalPosts.length === 1 ? "" : "s"} on page ${activeFeedPage} for ${tags}, ordered oldest to newest${filterBits.length ? `, filtered to ${filterBits.join(" and ")}` : ""}.`;
       };
 
       const showToast = (message) => {
@@ -408,11 +591,17 @@
       const openCurrentPost = () => { const post = currentModalPost(); if (post && post.id) window.open(`https://e621.net/posts/${post.id}`, "_blank", "noopener,noreferrer"); };
 
       const renderFeed = () => {
+        const visiblePosts = getVisiblePosts();
+        updateFeedSummary();
         if (!modalPosts.length) {
           feedGrid.innerHTML = '<div class="empty-state">No missed posts found for this watch.</div>';
           return;
         }
-        feedGrid.innerHTML = modalPosts.map(renderPostCard).join("");
+        if (!visiblePosts.length) {
+          feedGrid.innerHTML = '<div class="empty-state">No posts match the current view filters.</div>';
+          return;
+        }
+        feedGrid.innerHTML = visiblePosts.map(renderPostCard).join("");
       };
 
       const setImportTriggerState = (button, importing, idleLabel = "Import") => {
@@ -529,11 +718,12 @@
         newestLoadedAt = "";
         feedLoadedAt = "";
         updateFeedPagination({ page, hasPrev: page > 1, hasNext: false });
-        feedPrevBtn.disabled = true;
-        feedNextBtn.disabled = true;
+        feedPrevBtns.forEach((button) => { button.disabled = true; });
+        feedNextBtns.forEach((button) => { button.disabled = true; });
+        feedFirstBtns.forEach((button) => { button.disabled = true; });
         setStatus(feedStatus, `Loading missed posts for ${tags} page ${page}...`, "warn");
         try {
-          const response = await fetch(feedUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags, last_seen_at: lastSeen, page: String(page), limit: String(WATCH_PAGE_LIMIT) }) });
+          const response = await fetch(feedUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags, last_seen_at: lastSeen, page: String(page), limit: String(viewSettings.pageSize) }) });
           const payload = await response.json().catch(() => ({}));
           if (!response.ok || !payload.ok) { setStatus(feedStatus, payload.message || "Feed load failed", "error"); feedGrid.innerHTML = '<div class="empty-state">Feed load failed.</div>'; return; }
           const posts = (payload.data && Array.isArray(payload.data.posts)) ? payload.data.posts : [];
@@ -547,13 +737,11 @@
             hasNext: Boolean(watchMeta.has_next_page),
           });
           if (!posts.length) {
-            feedSummary.textContent = resolvedPage === 1 ? `No missed posts for ${tags}.` : `No missed posts on page ${resolvedPage} for ${tags}.`;
-            feedGrid.innerHTML = '<div class="empty-state">No missed posts found for this watch.</div>';
+            renderFeed();
             setStatus(feedStatus, "No missed posts", "ok");
             return;
           }
           newestLoadedAt = posts[posts.length - 1].created_at || "";
-          feedSummary.textContent = `${posts.length} missed post${posts.length === 1 ? "" : "s"} on page ${resolvedPage} for ${tags}, ordered oldest to newest. Imported items are flagged from their target folder.`;
           renderFeed();
           setStatus(feedStatus, "Feed loaded", "ok");
         } catch (_) {
@@ -594,15 +782,44 @@
         if (event.target.closest(".js-config-watch")) { openWatchConfig(card); return; }
         if (event.target.closest(".js-delete-watch")) { deleteWatch(card); }
       });
-      feedPrevBtn.addEventListener("click", () => {
+      const reloadActiveFeed = () => {
+        if (!activeWatchId) return;
+        const card = document.querySelector(`.watch-card[data-watch-id="${CSS.escape(activeWatchId)}"]`);
+        if (card) loadWatchFeed(card, 1);
+      };
+      feedPrevBtns.forEach((button) => button.addEventListener("click", () => {
         if (!activeWatchId || !activeFeedHasPrev) return;
         const card = document.querySelector(`.watch-card[data-watch-id="${CSS.escape(activeWatchId)}"]`);
         if (card) loadWatchFeed(card, Math.max(1, activeFeedPage - 1));
-      });
-      feedNextBtn.addEventListener("click", () => {
+      }));
+      feedNextBtns.forEach((button) => button.addEventListener("click", () => {
         if (!activeWatchId || !activeFeedHasNext) return;
         const card = document.querySelector(`.watch-card[data-watch-id="${CSS.escape(activeWatchId)}"]`);
         if (card) loadWatchFeed(card, activeFeedPage + 1);
+      }));
+      feedFirstBtns.forEach((button) => button.addEventListener("click", () => {
+        if (!activeWatchId || activeFeedPage <= 1) return;
+        const card = document.querySelector(`.watch-card[data-watch-id="${CSS.escape(activeWatchId)}"]`);
+        if (card) loadWatchFeed(card, 1);
+      }));
+      viewPageSize.addEventListener("change", () => {
+        updateViewSetting({ pageSize: Number(viewPageSize.value) || DEFAULT_SETTINGS.pageSize }, { rerender: false });
+        reloadActiveFeed();
+      });
+      viewColumns.addEventListener("change", () => updateViewSetting({ columns: viewColumns.value || "auto" }));
+      viewPreviewFit.addEventListener("change", () => updateViewSetting({ previewFit: viewPreviewFit.value || "contain" }));
+      viewPreviewRatio.addEventListener("change", () => updateViewSetting({ previewRatio: viewPreviewRatio.value || "classic" }));
+      viewDensity.addEventListener("change", () => updateViewSetting({ density: viewDensity.value || "default" }));
+      viewShowTags.addEventListener("change", () => updateViewSetting({ showTags: viewShowTags.checked }));
+      viewImportedOnly.addEventListener("change", () => {
+        updateViewSetting({ importedOnly: viewImportedOnly.checked, unimportedOnly: viewImportedOnly.checked ? false : viewSettings.unimportedOnly });
+      });
+      viewUnimportedOnly.addEventListener("change", () => {
+        updateViewSetting({ unimportedOnly: viewUnimportedOnly.checked, importedOnly: viewUnimportedOnly.checked ? false : viewSettings.importedOnly });
+      });
+      resetViewBtn.addEventListener("click", () => {
+        updateViewSetting({ ...DEFAULT_SETTINGS }, { rerender: true, persist: true });
+        if (activeWatchId) reloadActiveFeed();
       });
       configUseNewestBtn.addEventListener("click", () => {
         if (!editingWatchCard || editingWatchCard.dataset.watchId !== activeWatchId) {

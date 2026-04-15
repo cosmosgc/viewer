@@ -16,10 +16,36 @@
     button { cursor: pointer; background: #111; color: #fff; border: none; }
     .button-link { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
     .secondary-btn { background: #274064; color: #fff; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .view-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; padding: 14px; margin: 0 0 16px; background: linear-gradient(180deg, #f7faff 0%, #edf4ff 100%); border: 1px solid #d8e6fb; border-radius: 16px; }
+    .view-options .field { display: grid; gap: 6px; }
+    .view-options label { font-size: 12px; color: #516173; }
+    .toggle-option { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 10px 12px; background: #fff; border: 1px solid #d6deec; border-radius: 12px; }
+    .toggle-option input { margin: 0; }
+    .grid { --grid-gap: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--grid-gap); }
+    .grid.columns-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.columns-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.columns-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grid.columns-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .grid.columns-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .grid.density-compact { --grid-gap: 10px; }
+    .grid.density-compact .card { padding: 8px; }
+    .grid.density-compact .meta { font-size: 11px; margin-top: 6px; }
+    .grid.density-compact .actions { margin-top: 6px; gap: 6px; }
+    .grid.density-cozy { --grid-gap: 16px; }
+    .grid.density-cozy .card { padding: 12px; }
     .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 10px; }
-    .preview { width: 100%; height: 180px; object-fit: cover; background: #eee; border-radius: 8px; display: block; }
+    .preview-frame { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #eee; border-radius: 8px; overflow: hidden; }
+    .preview { width: 100%; height: 100%; object-fit: contain; background: #eee; border-radius: 8px; display: block; }
+    .grid.preview-cover .preview { object-fit: cover; }
+    .grid.ratio-square .preview-frame { aspect-ratio: 1 / 1; }
+    .grid.ratio-wide .preview-frame { aspect-ratio: 16 / 10; }
     .meta { font-size: 12px; color: #555; margin-top: 8px; line-height: 1.35; word-break: break-all; }
+    .meta.hidden-path .meta-path,
+    .meta.hidden-date .meta-date,
+    .meta.hidden-size .meta-size,
+    .meta.hidden-lookup .lookup-chip { display: none; }
+    .card.hidden-kind .kind-pill { display: none; }
+    .kind-pill { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; background: rgba(17, 24, 39, 0.78); border: 1px solid rgba(255,255,255,0.18); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; backdrop-filter: blur(6px); z-index: 1; pointer-events: none; }
     .lookup-chip { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px; border: 1px solid #2f5d36; background: #e9f8ec; color: #1f5a28; font-size: 11px; font-weight: 600; }
     .actions { margin-top: 8px; display: flex; gap: 7px; flex-wrap: wrap; }
     .actions a, .actions button { font-size: 12px; text-decoration: none; }
@@ -32,6 +58,7 @@
     .pager { margin: 14px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .pager a { font-size: 12px; text-decoration: none; border: 1px solid #d8deeb; background: #fff; border-radius: 999px; padding: 5px 10px; color: #223; }
     .pager .info { font-size: 12px; color: #555; }
+    .pager .disabled { font-size: 12px; border: 1px solid #d8deeb; background: #f3f5f9; border-radius: 999px; padding: 5px 10px; color: #8b95a6; }
     .preview-btn { border: none; padding: 0; background: transparent; width: 100%; cursor: pointer; }
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); display: none; align-items: center; justify-content: center; z-index: 9999; }
     .modal-backdrop.open { display: flex; }
@@ -64,7 +91,11 @@
       form.filters button { margin-right: 0; width: 100%; min-height: 42px; }
       form.filters a { align-self: center; }
       .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
-      .preview { height: 150px; }
+      .grid.columns-2,
+      .grid.columns-3,
+      .grid.columns-4,
+      .grid.columns-5,
+      .grid.columns-6 { grid-template-columns: 1fr; }
       .actions a, .actions button { min-height: 38px; }
       .modal-backdrop { align-items: stretch; }
       .modal-shell { width: 100vw; height: 100dvh; border-radius: 0; padding: 10px; gap: 8px; }
@@ -157,6 +188,13 @@
       <option value="down_score_desc" {% if sort_order == "down_score_desc" %}selected{% endif %}>Down score high-low</option>
       <option value="down_score_asc" {% if sort_order == "down_score_asc" %}selected{% endif %}>Down score low-high</option>
     </select>
+    <select id="pageSizeField" name="page_size">
+      <option value="12" {% if page_size == 12 %}selected{% endif %}>12 / page</option>
+      <option value="24" {% if page_size == 24 %}selected{% endif %}>24 / page</option>
+      <option value="60" {% if page_size == 60 %}selected{% endif %}>60 / page</option>
+      <option value="120" {% if page_size == 120 %}selected{% endif %}>120 / page</option>
+      <option value="240" {% if page_size == 240 %}selected{% endif %}>240 / page</option>
+    </select>
     <button type="submit">Apply</button>
     <a href="{{ url_for('index') }}">Reset</a>
   </form>
@@ -168,6 +206,7 @@
     <input type="hidden" name="media" value="{{ media }}">
     <input type="hidden" name="sort" value="{{ sort_order }}">
     <input type="hidden" name="page" value="{{ page }}">
+    <input type="hidden" name="page_size" value="{{ page_size }}">
     <button
       type="submit"
       class="secondary-btn"
@@ -182,13 +221,13 @@
     <strong>Browse by folder/month</strong>
     <div class="navrow">
       {% for y in years %}
-        <a class="pill" href="{{ url_for('index', year=y, media=media, sort=sort_order) }}">{{ y }}</a>
+        <a class="pill" href="{{ url_for('index', year=y, media=media, sort=sort_order, page_size=page_size) }}">{{ y }}</a>
       {% endfor %}
     </div>
     {% if year and months_by_year.get(year) %}
       <div class="navrow">
         {% for m in months_by_year.get(year) %}
-          <a class="pill" href="{{ url_for('index', year=year, month=m, media=media, sort=sort_order) }}">{{ year }}/{{ m }}</a>
+          <a class="pill" href="{{ url_for('index', year=year, month=m, media=media, sort=sort_order, page_size=page_size) }}">{{ year }}/{{ m }}</a>
         {% endfor %}
       </div>
     {% endif %}
@@ -198,19 +237,78 @@
     <div class="flash">Pick a year or month to load files. This keeps loading fast for large collections.</div>
   {% endif %}
 
+  <div class="view-options">
+    <div class="field">
+      <label for="viewPageSize">Items per page</label>
+      <select id="viewPageSize">
+        <option value="12">12</option>
+        <option value="24">24</option>
+        <option value="60">60</option>
+        <option value="120">120</option>
+        <option value="240">240</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="viewColumns">Columns</label>
+      <select id="viewColumns">
+        <option value="auto">Auto</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="viewPreviewFit">Preview fit</label>
+      <select id="viewPreviewFit">
+        <option value="contain">Contain</option>
+        <option value="cover">Cover</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="viewPreviewRatio">Preview ratio</label>
+      <select id="viewPreviewRatio">
+        <option value="classic">Classic 4:3</option>
+        <option value="square">Square</option>
+        <option value="wide">Wide</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="viewDensity">Card density</label>
+      <select id="viewDensity">
+        <option value="default">Default</option>
+        <option value="compact">Compact</option>
+        <option value="cozy">Cozy</option>
+      </select>
+    </div>
+    <label class="toggle-option"><input id="viewShowPath" type="checkbox" checked> Show path</label>
+    <label class="toggle-option"><input id="viewShowDate" type="checkbox" checked> Show date</label>
+    <label class="toggle-option"><input id="viewShowSize" type="checkbox"> Show size</label>
+    <label class="toggle-option"><input id="viewShowKind" type="checkbox"> Show type</label>
+    <label class="toggle-option"><input id="viewShowLookup" type="checkbox" checked> Show lookup badge</label>
+    <div class="field" style="align-self:end;">
+      <button id="resetViewBtn" type="button" class="secondary-btn">Reset View</button>
+    </div>
+  </div>
+
   {% if has_scope and pages > 1 %}
     <div class="pager">
       {% if page > 1 %}
-        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page-1) }}">Previous</a>
+        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page-1, page_size=page_size) }}">Previous</a>
+      {% else %}
+        <span class="disabled">Previous</span>
       {% endif %}
       <span class="info">Page {{ page }} / {{ pages }} ({{ page_size }} per page)</span>
       {% if page < pages %}
-        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page+1) }}">Next</a>
+        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page+1, page_size=page_size) }}">Next</a>
+      {% else %}
+        <span class="disabled">Next</span>
       {% endif %}
     </div>
   {% endif %}
 
-  <div class="grid">
+  <div id="resourceGrid" class="grid">
     {% for item in items %}
       <div class="card">
         <button
@@ -224,18 +322,22 @@
           data-kind="{{ item.kind }}"
           data-src="{{ url_for('media', rel_path=item.rel_path) }}"
         >
-          {% if item.kind == "image" %}
-            <img class="preview lazy-media" data-src="{{ url_for('media', rel_path=item.rel_path) }}" alt="{{ item.name }}" loading="lazy" decoding="async">
-          {% else %}
-            <video class="preview lazy-media" controls preload="none" loop>
-              <source data-src="{{ url_for('media', rel_path=item.rel_path) }}">
-            </video>
-          {% endif %}
+          <div class="preview-frame">
+            <span class="kind-pill">{{ item.kind }}</span>
+            {% if item.kind == "image" %}
+              <img class="preview lazy-media" data-src="{{ url_for('media', rel_path=item.rel_path) }}" alt="{{ item.name }}" loading="lazy" decoding="async">
+            {% else %}
+              <video class="preview lazy-media" controls preload="none" loop>
+                <source data-src="{{ url_for('media', rel_path=item.rel_path) }}">
+              </video>
+            {% endif %}
+          </div>
         </button>
         <div class="meta">
           <strong>{{ item.name }}</strong><br>
-          Date: {{ item.display_dt }}<br>
-          Path: {{ item.rel_path }}
+          <span class="meta-date">Date: {{ item.display_dt }}</span><br class="meta-date">
+          <span class="meta-size">Size: {{ item.size_label if item.size_label is defined else item.size_bytes }}</span><br class="meta-size">
+          <span class="meta-path">Path: {{ item.rel_path }}</span>
           {% if item.has_lookup_data %}
             <br><span class="lookup-chip">data.json ready</span>
           {% endif %}
@@ -263,11 +365,15 @@
   {% if has_scope and pages > 1 %}
     <div class="pager">
       {% if page > 1 %}
-        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page-1) }}">Previous</a>
+        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page-1, page_size=page_size) }}">Previous</a>
+      {% else %}
+        <span class="disabled">Previous</span>
       {% endif %}
-      <span class="info">Page {{ page }} / {{ pages }}</span>
+      <span class="info">Page {{ page }} / {{ pages }} ({{ page_size }} per page)</span>
       {% if page < pages %}
-        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page+1) }}">Next</a>
+        <a href="{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page+1, page_size=page_size) }}">Next</a>
+      {% else %}
+        <span class="disabled">Next</span>
       {% endif %}
     </div>
   {% endif %}
@@ -309,6 +415,138 @@
 
   <script src="{{ url_for('static', filename='reverse_lookup_feature.js') }}"></script>
   <script>
+    (() => {
+      const SETTINGS_COOKIE = "resource_watch_prefs";
+      const DEFAULT_SETTINGS = {
+        pageSize: {{ page_size | tojson }},
+        columns: "auto",
+        previewFit: "contain",
+        previewRatio: "classic",
+        density: "default",
+        showTags: true,
+        importedOnly: false,
+        unimportedOnly: false,
+        showPath: true,
+        showDate: true,
+        showSize: false,
+        showKind: false,
+        showLookup: true
+      };
+      const grid = document.getElementById("resourceGrid");
+      const form = document.querySelector("form.filters");
+      const pageSizeField = document.getElementById("pageSizeField");
+      const viewPageSize = document.getElementById("viewPageSize");
+      const viewColumns = document.getElementById("viewColumns");
+      const viewPreviewFit = document.getElementById("viewPreviewFit");
+      const viewPreviewRatio = document.getElementById("viewPreviewRatio");
+      const viewDensity = document.getElementById("viewDensity");
+      const viewShowPath = document.getElementById("viewShowPath");
+      const viewShowDate = document.getElementById("viewShowDate");
+      const viewShowSize = document.getElementById("viewShowSize");
+      const viewShowKind = document.getElementById("viewShowKind");
+      const viewShowLookup = document.getElementById("viewShowLookup");
+      const resetViewBtn = document.getElementById("resetViewBtn");
+      if (!grid || !form) return;
+
+      const readCookie = (name) => {
+        const prefix = `${name}=`;
+        return document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(prefix))?.slice(prefix.length) || "";
+      };
+      const writeCookie = (name, value) => {
+        document.cookie = `${name}=${value}; path=/; max-age=2147483647; expires=Fri, 31 Dec 2099 23:59:59 GMT; SameSite=Lax`;
+      };
+      const loadSettings = () => {
+        const raw = readCookie(SETTINGS_COOKIE);
+        if (!raw) return { ...DEFAULT_SETTINGS };
+        try {
+          const parsed = JSON.parse(decodeURIComponent(raw));
+          return { ...DEFAULT_SETTINGS, ...(parsed && typeof parsed === "object" ? parsed : {}) };
+        } catch (_) {
+          return { ...DEFAULT_SETTINGS };
+        }
+      };
+      const saveSettings = (settings) => {
+        writeCookie(SETTINGS_COOKIE, encodeURIComponent(JSON.stringify(settings)));
+      };
+
+      let viewSettings = loadSettings();
+      const cookiePageSize = Number(viewSettings.pageSize || DEFAULT_SETTINGS.pageSize);
+      const currentPageSize = Number(pageSizeField.value || DEFAULT_SETTINGS.pageSize);
+      if (!new URLSearchParams(window.location.search).has("page_size") && cookiePageSize && cookiePageSize !== currentPageSize) {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set("page_size", String(cookiePageSize));
+        window.location.replace(nextUrl.toString());
+        return;
+      }
+      viewSettings.pageSize = currentPageSize;
+
+      const syncControls = () => {
+        viewPageSize.value = String(viewSettings.pageSize);
+        pageSizeField.value = String(viewSettings.pageSize);
+        viewColumns.value = viewSettings.columns;
+        viewPreviewFit.value = viewSettings.previewFit;
+        viewPreviewRatio.value = viewSettings.previewRatio;
+        viewDensity.value = viewSettings.density;
+        viewShowPath.checked = Boolean(viewSettings.showPath);
+        viewShowDate.checked = Boolean(viewSettings.showDate);
+        viewShowSize.checked = Boolean(viewSettings.showSize);
+        viewShowKind.checked = Boolean(viewSettings.showKind);
+        viewShowLookup.checked = Boolean(viewSettings.showLookup);
+      };
+
+      const applySettings = () => {
+        grid.classList.remove("columns-2", "columns-3", "columns-4", "columns-5", "columns-6", "preview-cover", "ratio-square", "ratio-wide", "density-compact", "density-cozy");
+        if (viewSettings.columns !== "auto") grid.classList.add(`columns-${viewSettings.columns}`);
+        if (viewSettings.previewFit === "cover") grid.classList.add("preview-cover");
+        if (viewSettings.previewRatio === "square") grid.classList.add("ratio-square");
+        if (viewSettings.previewRatio === "wide") grid.classList.add("ratio-wide");
+        if (viewSettings.density === "compact") grid.classList.add("density-compact");
+        if (viewSettings.density === "cozy") grid.classList.add("density-cozy");
+        document.querySelectorAll("#resourceGrid .meta").forEach((meta) => {
+          meta.classList.toggle("hidden-path", !viewSettings.showPath);
+          meta.classList.toggle("hidden-date", !viewSettings.showDate);
+          meta.classList.toggle("hidden-size", !viewSettings.showSize);
+          meta.classList.toggle("hidden-lookup", !viewSettings.showLookup);
+        });
+        document.querySelectorAll("#resourceGrid .card").forEach((card) => {
+          card.classList.toggle("hidden-kind", !viewSettings.showKind);
+        });
+      };
+
+      const updateSettings = (patch, { submit = false } = {}) => {
+        viewSettings = { ...viewSettings, ...patch };
+        syncControls();
+        applySettings();
+        saveSettings(viewSettings);
+        if (submit) form.requestSubmit();
+      };
+
+      syncControls();
+      applySettings();
+
+      form.addEventListener("submit", () => {
+        viewSettings = { ...viewSettings, pageSize: Number(pageSizeField.value || DEFAULT_SETTINGS.pageSize) };
+        saveSettings(viewSettings);
+      });
+      viewPageSize.addEventListener("change", () => updateSettings({ pageSize: Number(viewPageSize.value || DEFAULT_SETTINGS.pageSize) }, { submit: true }));
+      viewColumns.addEventListener("change", () => updateSettings({ columns: viewColumns.value || "auto" }));
+      viewPreviewFit.addEventListener("change", () => updateSettings({ previewFit: viewPreviewFit.value || "contain" }));
+      viewPreviewRatio.addEventListener("change", () => updateSettings({ previewRatio: viewPreviewRatio.value || "classic" }));
+      viewDensity.addEventListener("change", () => updateSettings({ density: viewDensity.value || "default" }));
+      viewShowPath.addEventListener("change", () => updateSettings({ showPath: viewShowPath.checked }));
+      viewShowDate.addEventListener("change", () => updateSettings({ showDate: viewShowDate.checked }));
+      viewShowSize.addEventListener("change", () => updateSettings({ showSize: viewShowSize.checked }));
+      viewShowKind.addEventListener("change", () => updateSettings({ showKind: viewShowKind.checked }));
+      viewShowLookup.addEventListener("change", () => updateSettings({ showLookup: viewShowLookup.checked }));
+      resetViewBtn.addEventListener("click", () => {
+        viewSettings = { ...DEFAULT_SETTINGS };
+        syncControls();
+        applySettings();
+        saveSettings(viewSettings);
+        form.requestSubmit();
+      });
+    })();
+
     (() => {
       const lazyNodes = document.querySelectorAll(".lazy-media");
       if (!lazyNodes.length) return;
@@ -392,8 +630,8 @@
       let current = 0;
       let open = false;
       let swipeState = null;
-      const prevPageUrl = "{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page-1) if page > 1 else '' }}";
-      const nextPageUrl = "{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page+1) if page < pages else '' }}";
+      const prevPageUrl = "{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page-1, page_size=page_size) if page > 1 else '' }}";
+      const nextPageUrl = "{{ url_for('index', q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page+1, page_size=page_size) if page < pages else '' }}";
       const SWIPE_MIN_X = 48;
       const SWIPE_MAX_Y = 90;
       const SWIPE_LOCK_DELTA = 14;

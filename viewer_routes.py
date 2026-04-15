@@ -57,6 +57,11 @@ def register_routes(flask_app):
         media = request.args.get("media", "all")
         sort_order = request.args.get("sort", "date_desc")
         try:
+            page_size = int(request.args.get("page_size", str(PAGE_SIZE)))
+        except ValueError:
+            page_size = PAGE_SIZE
+        page_size = max(1, min(page_size, 500))
+        try:
             page = int(request.args.get("page", "1"))
         except ValueError:
             page = 1
@@ -64,7 +69,7 @@ def register_routes(flask_app):
         years, months_by_year, days_by_ym = collect_calendar()
         base_dir, filtered = filtered_scope_items(year, month, day, q, media)
         sort_order = apply_sort(filtered, sort_order)
-        page_items, total, page, pages = paginate(filtered, page, PAGE_SIZE)
+        page_items, total, page, pages = paginate(filtered, page, page_size)
 
         pins = load_pins()
         for item in page_items:
@@ -88,7 +93,7 @@ def register_routes(flask_app):
             has_scope=base_dir is not None,
             page=page,
             pages=pages,
-            page_size=PAGE_SIZE,
+            page_size=page_size,
             inbox_count=len(list_inbox_candidates()),
             reverse_ui_config=lookup_service.ui_config,
         )
@@ -604,11 +609,12 @@ def register_routes(flask_app):
         media = request.form.get("media", "all")
         sort_order = request.form.get("sort", "date_desc")
         page = request.form.get("page", "1")
+        page_size = request.form.get("page_size", str(PAGE_SIZE))
 
         base_dir, filtered = filtered_scope_items(year, month, day, q, media)
         if base_dir is None:
             flash("Pick a year or month before fetching missing reverse-search data.")
-            return redirect(url_for("index", q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page))
+            return redirect(url_for("index", q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page, page_size=page_size))
 
         image_items = [item for item in filtered if item["kind"] == "image"]
         fetched = 0
@@ -644,7 +650,7 @@ def register_routes(flask_app):
         if rate_limited:
             message += f" ShortLimitReached responses: {rate_limited}."
         flash(message)
-        return redirect(url_for("index", q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page))
+        return redirect(url_for("index", q=q, year=year, month=month, day=day, media=media, sort=sort_order, page=page, page_size=page_size))
 
     @flask_app.route("/media/<path:rel_path>")
     def media(rel_path):
