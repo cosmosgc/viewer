@@ -27,7 +27,7 @@ def register_routes(flask_app):
         created_at = lookup_service.parse_post_created_at((post or {}).get("created_at"))
         if created_at is None:
             return None
-        return RESULT_DIR / created_at.strftime("%Y") / created_at.strftime("%m") / created_at.strftime("%d")
+        return RESULT_DIR / "imported" / created_at.strftime("%Y") / created_at.strftime("%m")
 
     def watch_import_state(post):
         post_id = str((post or {}).get("id") or "").strip()
@@ -310,7 +310,7 @@ def register_routes(flask_app):
         if status != 200 or not download_payload.get("ok"):
             return jsonify(download_payload), status
 
-        target_dir = RESULT_DIR / created_at.strftime("%Y") / created_at.strftime("%m") / created_at.strftime("%d")
+        target_dir = RESULT_DIR / "imported" / created_at.strftime("%Y") / created_at.strftime("%m")
         target_dir.mkdir(parents=True, exist_ok=True)
         stamp = created_at.strftime("%d-%m-%Y_%H-%M-%S")
         base_name = normalized_upload_name(f"e621_post_{post_id or 'resource'}")
