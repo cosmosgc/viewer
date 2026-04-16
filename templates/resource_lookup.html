@@ -130,6 +130,7 @@
       <a href="{{ url_for('upload_resources') }}">Upload</a>
       <a href="{{ url_for('ingest_resources') }}">Ingest Folder ({{ inbox_count }})</a>
       <span class="topbar-note">Result dir: {{ result_dir }}</span>
+      <span class="topbar-note">Lookup DB: {{ lookup_db_path }}</span>
     </div>
 
     {% with msgs = get_flashed_messages() %}
@@ -147,6 +148,11 @@
           <p>Browse JSON endpoints like <code>posts.json</code>, <code>favorites.json</code>, <code>pools.json</code>, and <code>pools/{id}.json</code>.</p>
         </div>
       </div>
+      <form method="post" action="{{ url_for('lookup_import_legacy_route') }}" style="margin:0 0 14px;">
+        <input type="hidden" name="back" value="{{ url_for('lookup_view') }}">
+        <button type="submit" class="ghost-btn" onclick="return window.confirm('Import every legacy data.json file into the SQLite lookup database? Existing rows will be updated by rel_path.');">Import Legacy data.json Into SQLite</button>
+        <span class="topbar-note" style="margin-left:10px;">Current cached rows: {{ lookup_cache_count }}</span>
+      </form>
       <form id="apiExplorerForm" class="filters">
         <div class="field">
           <label for="endpoint">Endpoint</label>

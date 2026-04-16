@@ -166,7 +166,7 @@
       }
       currentItem = item;
       if (!force && item.reverseSearch) {
-        setState(item, item.reverseSearch.cached ? "Loaded from data.json" : "Loaded from live result", item.reverseSearch, false);
+        setState(item, item.reverseSearch.cached ? "Loaded from SQLite cache" : "Loaded from live result", item.reverseSearch, false);
         return item.reverseSearch;
       }
 
@@ -184,7 +184,7 @@
         }
         item.reverseSearch = payload;
         if (currentItem === item) {
-          setState(item, payload.cached ? "Loaded from data.json" : "Updated from e621", payload, false);
+          setState(item, payload.cached ? "Loaded from SQLite cache" : "Updated from e621", payload, false);
         }
         return payload;
       } catch (_) {

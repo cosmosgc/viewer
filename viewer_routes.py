@@ -143,6 +143,8 @@ def register_routes(flask_app):
             result_dir=str(RESULT_DIR),
             inbox_count=len(list_inbox_candidates()),
             reverse_ui_config=lookup_service.ui_config,
+            lookup_db_path=str(lookup_service.db_path),
+            lookup_cache_count=lookup_service.count_cached_resources(),
         )
 
     @flask_app.route("/watch")
@@ -395,12 +397,7 @@ def register_routes(flask_app):
             },
         }
         resource_payload["summary"] = lookup_service.summarize_resource(resource_payload)
-        cache_payload = lookup_service.load_dir_lookup_cache(target_path)
-        resources = cache_payload.setdefault("resources", {})
-        resources[target_path.name] = resource_payload
-        cache_payload["updated_at"] = resource_payload["fetched_at"]
-        cache_payload["directory"] = str(target_path.parent)
-        lookup_service.save_dir_lookup_cache(target_path, cache_payload)
+        lookup_service.upsert_cached_resource(resource_payload)
 
         return jsonify({
             "ok": True,
@@ -410,6 +407,26 @@ def register_routes(flask_app):
             "post_id": post_id,
             "created_at": created_at.isoformat(sep=" "),
         }), 200
+
+    @flask_app.post("/lookup/import-legacy")
+    def lookup_import_legacy_route():
+        back = request.form.get("back", url_for("lookup_view"))
+        summary = lookup_service.import_legacy_cache_tree()
+        if not summary.get("ok"):
+            flash(summary.get("message") or "Legacy lookup import failed.")
+            return redirect(back)
+
+        message = (
+            f"Legacy lookup import complete. Files scanned: {summary.get('files_found', 0)}. "
+            f"Files imported: {summary.get('files_imported', 0)}. "
+            f"Rows imported: {summary.get('rows_imported', 0)}. "
+            f"Rows skipped: {summary.get('rows_skipped', 0)}."
+        )
+        failures = summary.get("failures") or []
+        if failures:
+            message += f" Failures: {len(failures)}."
+        flash(message)
+        return redirect(back)
 
     @flask_app.route("/month/<year>/<month>")
     def month_view(year, month):

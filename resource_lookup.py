@@ -2,6 +2,7 @@ import datetime as dt
 import json
 import mimetypes
 import os
+import sqlite3
 import threading
 import time
 import urllib.request
@@ -18,10 +19,11 @@ load_env_file()
 
 
 class ReverseSearchService:
-    def __init__(self, result_dir, media_type_for_ext, safe_rel_path):
+    def __init__(self, result_dir, media_type_for_ext, safe_rel_path, db_path):
         self.result_dir = Path(result_dir).resolve()
         self.media_type_for_ext = media_type_for_ext
         self.safe_rel_path = safe_rel_path
+        self.db_path = Path(db_path).resolve()
         self.config_path = Path(__file__).resolve().parent / "reverse_search_config.json"
         self.api_base_url = os.getenv("RESOURCE_E621_API_BASE_URL", "https://e621.net").rstrip("/")
         self.iqdb_url = os.getenv("RESOURCE_E621_IQDB_URL", "https://e621.net/iqdb_queries.json")
@@ -34,8 +36,10 @@ class ReverseSearchService:
         self.timeout = max(5, int(os.getenv("RESOURCE_E621_TIMEOUT", "25")))
         self.min_interval_seconds = max(0.0, float(os.getenv("RESOURCE_E621_MIN_INTERVAL_SECONDS", "1")))
         self._request_spacing_lock = threading.Lock()
+        self._db_lock = threading.Lock()
         self._last_request_completed_at = None
         self.ui_config = self.load_ui_config()
+        self.ensure_lookup_db()
 
     def build_auth_headers(self, include_content_type=None):
         headers = {
@@ -215,29 +219,185 @@ class ReverseSearchService:
             return None
         return abs_path
 
+    def ensure_lookup_db(self):
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS reverse_lookup_cache (
+                    rel_path TEXT PRIMARY KEY,
+                    file_name TEXT NOT NULL,
+                    dir_path TEXT NOT NULL,
+                    fetched_at TEXT,
+                    source TEXT,
+                    result_json TEXT NOT NULL,
+                    summary_json TEXT NOT NULL,
+                    legacy_cache_path TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reverse_lookup_cache_dir_path ON reverse_lookup_cache(dir_path)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reverse_lookup_cache_file_name ON reverse_lookup_cache(file_name)"
+            )
+            conn.commit()
+
+    def db_connect(self):
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def db_row_to_resource(self, row):
+        if row is None:
+            return None
+        try:
+            result = json.loads(row["result_json"]) if row["result_json"] else {}
+        except Exception:
+            result = {}
+        try:
+            summary = json.loads(row["summary_json"]) if row["summary_json"] else {}
+        except Exception:
+            summary = {}
+        return {
+            "file_name": row["file_name"],
+            "rel_path": row["rel_path"],
+            "fetched_at": row["fetched_at"] or "",
+            "source": row["source"] or "",
+            "result": result,
+            "summary": summary,
+        }
+
+    def get_cached_resource_by_rel_path(self, rel_path):
+        rel_path = str(rel_path or "").replace("\\", "/").strip()
+        if not rel_path:
+            return None
+        with self._db_lock, self.db_connect() as conn:
+            row = conn.execute(
+                """
+                SELECT rel_path, file_name, dir_path, fetched_at, source, result_json, summary_json
+                FROM reverse_lookup_cache
+                WHERE rel_path = ?
+                """,
+                (rel_path,),
+            ).fetchone()
+        return self.db_row_to_resource(row)
+
+    def upsert_cached_resource(self, resource_payload, legacy_cache_path=""):
+        if not isinstance(resource_payload, dict):
+            return False
+        rel_path = str(resource_payload.get("rel_path") or "").replace("\\", "/").strip()
+        file_name = str(resource_payload.get("file_name") or "").strip()
+        if not rel_path or not file_name:
+            return False
+        summary = resource_payload.get("summary")
+        if not isinstance(summary, dict):
+            summary = self.summarize_resource(resource_payload)
+        result = resource_payload.get("result")
+        now = dt.datetime.now().isoformat(timespec="seconds")
+        with self._db_lock, self.db_connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO reverse_lookup_cache (
+                    rel_path, file_name, dir_path, fetched_at, source, result_json, summary_json, legacy_cache_path, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(rel_path) DO UPDATE SET
+                    file_name = excluded.file_name,
+                    dir_path = excluded.dir_path,
+                    fetched_at = excluded.fetched_at,
+                    source = excluded.source,
+                    result_json = excluded.result_json,
+                    summary_json = excluded.summary_json,
+                    legacy_cache_path = excluded.legacy_cache_path,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    rel_path,
+                    file_name,
+                    str(Path(rel_path).parent).replace("\\", "/"),
+                    str(resource_payload.get("fetched_at") or ""),
+                    str(resource_payload.get("source") or ""),
+                    json.dumps(result, ensure_ascii=False),
+                    json.dumps(summary, ensure_ascii=False),
+                    str(legacy_cache_path or ""),
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+        return True
+
+    def count_cached_resources(self):
+        with self._db_lock, self.db_connect() as conn:
+            row = conn.execute("SELECT COUNT(*) AS count FROM reverse_lookup_cache").fetchone()
+        return int(row["count"]) if row else 0
+
     def image_lookup_cache_path(self, image_path):
         return image_path.parent / "data.json"
 
-    def load_dir_lookup_cache(self, image_path):
-        cache_path = self.image_lookup_cache_path(image_path)
-        if not cache_path.exists():
-            return {"resources": {}}
+    def import_legacy_cache_file(self, cache_path):
+        cache_path = Path(cache_path)
+        if not cache_path.exists() or not cache_path.is_file():
+            return {"ok": False, "message": "Legacy cache file not found", "imported": 0, "skipped": 0}
         try:
             with open(cache_path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
-        except Exception:
-            return {"resources": {}}
-        if not isinstance(payload, dict):
-            return {"resources": {}}
-        resources = payload.get("resources")
+        except Exception as exc:
+            return {"ok": False, "message": f"Failed to read {cache_path}: {exc}", "imported": 0, "skipped": 0}
+        resources = payload.get("resources", {}) if isinstance(payload, dict) else {}
         if not isinstance(resources, dict):
-            payload["resources"] = {}
-        return payload
+            return {"ok": False, "message": "Legacy cache file has no resources map", "imported": 0, "skipped": 0}
 
-    def save_dir_lookup_cache(self, image_path, payload):
-        cache_path = self.image_lookup_cache_path(image_path)
-        with open(cache_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, ensure_ascii=False)
+        imported = 0
+        skipped = 0
+        rel_dir = self.safe_rel_path(cache_path.parent)
+        if not rel_dir:
+            return {"ok": False, "message": "Legacy cache directory is outside result dir", "imported": 0, "skipped": 0}
+
+        for file_name, resource in resources.items():
+            if not isinstance(resource, dict):
+                skipped += 1
+                continue
+            rel_path = str(resource.get("rel_path") or f"{rel_dir}/{file_name}").replace("\\", "/").strip("/")
+            normalized = {
+                **resource,
+                "file_name": str(resource.get("file_name") or file_name),
+                "rel_path": rel_path,
+            }
+            if not isinstance(normalized.get("summary"), dict):
+                normalized["summary"] = self.summarize_resource(normalized)
+            if self.upsert_cached_resource(normalized, legacy_cache_path=str(cache_path)):
+                imported += 1
+            else:
+                skipped += 1
+
+        return {"ok": True, "imported": imported, "skipped": skipped, "path": str(cache_path)}
+
+    def import_legacy_cache_tree(self):
+        imported_files = 0
+        imported_rows = 0
+        skipped_rows = 0
+        failures = []
+        for cache_path in self.result_dir.rglob("data.json"):
+            result = self.import_legacy_cache_file(cache_path)
+            if result.get("ok"):
+                imported_files += 1
+                imported_rows += int(result.get("imported") or 0)
+                skipped_rows += int(result.get("skipped") or 0)
+            else:
+                failures.append(result.get("message") or str(cache_path))
+        return {
+            "ok": True,
+            "files_found": imported_files + len(failures),
+            "files_imported": imported_files,
+            "rows_imported": imported_rows,
+            "rows_skipped": skipped_rows,
+            "failures": failures,
+            "db_path": str(self.db_path),
+        }
 
     def first_raw_hit(self, result):
         raw = result.get("raw") if isinstance(result, dict) else None
@@ -315,19 +475,21 @@ class ReverseSearchService:
         return summary
 
     def cached_resource_data(self, image_path):
-        cache_payload = self.load_dir_lookup_cache(image_path)
-        resources = cache_payload.get("resources", {})
-        if not isinstance(resources, dict):
+        rel_path = self.safe_rel_path(image_path)
+        if not rel_path:
             return None
-        resource = resources.get(image_path.name)
+        resource = self.get_cached_resource_by_rel_path(rel_path)
+        if resource is None:
+            legacy_path = self.image_lookup_cache_path(image_path)
+            if legacy_path.exists():
+                self.import_legacy_cache_file(legacy_path)
+                resource = self.get_cached_resource_by_rel_path(rel_path)
         if not isinstance(resource, dict):
             return None
         summary = resource.get("summary")
         if not isinstance(summary, dict):
-            summary = self.summarize_resource(resource)
-            resource["summary"] = summary
-            resources[image_path.name] = resource
-            self.save_dir_lookup_cache(image_path, cache_payload)
+            resource["summary"] = self.summarize_resource(resource)
+            self.upsert_cached_resource(resource)
         return resource
 
     def build_multipart_body(self, post_data, file_name, file_bytes, content_type):
@@ -448,17 +610,15 @@ class ReverseSearchService:
         if self.media_type_for_ext(abs_path.suffix.lower()) != "image":
             return {"ok": False, "message": "Reverse search is only available for images"}, 400
 
-        cache_payload = self.load_dir_lookup_cache(abs_path)
         resource_key = abs_path.name
-        resources = cache_payload.setdefault("resources", {})
-
-        if not force and resource_key in resources:
+        cached_resource = self.cached_resource_data(abs_path)
+        if not force and isinstance(cached_resource, dict):
             return {
                 "ok": True,
                 "cached": True,
                 "resource_key": resource_key,
-                "data": resources[resource_key],
-                "cache_path": str(self.image_lookup_cache_path(abs_path)),
+                "data": cached_resource,
+                "storage_path": str(self.db_path),
             }, 200
 
         result = self.reverse_search_image(abs_path)
@@ -471,15 +631,12 @@ class ReverseSearchService:
             "result": result,
         }
         resource_payload["summary"] = self.summarize_resource(resource_payload)
-        resources[resource_key] = resource_payload
-        cache_payload["updated_at"] = now
-        cache_payload["directory"] = str(abs_path.parent)
-        self.save_dir_lookup_cache(abs_path, cache_payload)
+        self.upsert_cached_resource(resource_payload)
 
         return {
             "ok": True,
             "cached": False,
             "resource_key": resource_key,
             "data": resource_payload,
-            "cache_path": str(self.image_lookup_cache_path(abs_path)),
+            "storage_path": str(self.db_path),
         }, 200

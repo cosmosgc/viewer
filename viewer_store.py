@@ -6,7 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from resource_lookup import ReverseSearchService
-from viewer_context import INBOX_DIR, INBOX_MARKER, PINNED_JSON, RESULT_DIR, WATCH_DIR, WATCH_JSON
+from viewer_context import INBOX_DIR, INBOX_MARKER, LOOKUP_DB, PINNED_JSON, RESULT_DIR, WATCH_DIR, WATCH_JSON
 from viewer_support import list_subdirs, media_type_for_ext, parse_dt_from_name
 
 
@@ -90,6 +90,7 @@ lookup_service = ReverseSearchService(
     result_dir=RESULT_DIR,
     media_type_for_ext=media_type_for_ext,
     safe_rel_path=safe_rel_path,
+    db_path=LOOKUP_DB,
 )
 
 
@@ -105,7 +106,6 @@ def scan_resources(base_dir):
         return []
 
     items = []
-    lookup_cache_by_dir = {}
     for root, _, files in os.walk(base_dir):
         for file_name in files:
             p = Path(root) / file_name
@@ -134,11 +134,7 @@ def scan_resources(base_dir):
             cached_lookup = None
             has_lookup_data = False
             if kind == "image":
-                dir_key = str(p.parent.resolve())
-                if dir_key not in lookup_cache_by_dir:
-                    lookup_cache_by_dir[dir_key] = lookup_service.load_dir_lookup_cache(p)
-                resources = lookup_cache_by_dir[dir_key].get("resources", {})
-                candidate = resources.get(p.name) if isinstance(resources, dict) else None
+                candidate = lookup_service.cached_resource_data(p)
                 if isinstance(candidate, dict):
                     result_data = candidate.get("result")
                     fetched_at_raw = candidate.get("fetched_at")
@@ -159,11 +155,8 @@ def scan_resources(base_dir):
                         if refreshed_status == 200 and refreshed_payload.get("ok"):
                             refreshed_resource = refreshed_payload.get("data")
                             if isinstance(refreshed_resource, dict):
-                                resources[p.name] = refreshed_resource
                                 candidate = refreshed_resource
 
-                    if not isinstance(candidate.get("summary"), dict):
-                        candidate["summary"] = lookup_service.summarize_resource(candidate)
                     cached_lookup = candidate
                     result_data = candidate.get("result")
                     has_lookup_data = not (isinstance(result_data, dict) and result_data.get("error"))

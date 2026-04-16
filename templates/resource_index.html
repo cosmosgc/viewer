@@ -216,6 +216,16 @@
       Fetch Missing Reverse Data For Current Search
     </button>
   </form>
+  <!-- <form method="post" action="{{ url_for('lookup_import_legacy_route') }}" style="margin:-6px 0 16px;">
+    <input type="hidden" name="back" value="{{ request.full_path }}">
+    <button
+      type="submit"
+      class="secondary-btn"
+      onclick="return window.confirm('Import every legacy data.json file into the SQLite lookup database? Existing rows will be updated by rel_path.');"
+    >
+      Import Legacy data.json Into SQLite
+    </button>
+  </form> -->
 
   <div class="navbox">
     <strong>Browse by folder/month</strong>
@@ -339,7 +349,7 @@
           <span class="meta-size">Size: {{ item.size_label if item.size_label is defined else item.size_bytes }}</span><br class="meta-size">
           <span class="meta-path">Path: {{ item.rel_path }}</span>
           {% if item.has_lookup_data %}
-            <br><span class="lookup-chip">data.json ready</span>
+            <br><span class="lookup-chip">lookup cached</span>
           {% endif %}
         </div>
         <div class="actions">

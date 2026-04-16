@@ -35,6 +35,7 @@ INBOX_DIR = Path(os.getenv("RESOURCE_INBOX_DIR", APP_DIR / "resource_inbox")).re
 INBOX_MARKER = INBOX_DIR / "drop_files_here.txt"
 WATCH_DIR = Path(os.getenv("RESOURCE_WATCH_DIR", APP_DIR / "watch")).resolve()
 WATCH_JSON = WATCH_DIR / "watches.json"
+LOOKUP_DB = Path(os.getenv("RESOURCE_LOOKUP_DB", APP_DIR / "reverse_lookup.sqlite3")).resolve()
 
 app = Flask(__name__, template_folder=str(TEMPLATE_DIR))
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "resource-viewer-secret")
