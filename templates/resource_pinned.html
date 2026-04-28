@@ -20,14 +20,14 @@
 <body>
   <div class="topbar">
     <h2 style="margin:0;">Pinned Resources</h2>
-    <span class="badge">{{ total }} files</span>
+    <span class="badge js-total-count">{{ total }} files</span>
     <a href="{{ url_for('index') }}">Back to Search</a>
     <a href="{{ url_for('lookup_view') }}">Lookup</a>
     <a href="{{ url_for('watch_view') }}">Watch</a>
     <a href="{{ url_for('stats_view') }}">Stats</a>
     <a href="{{ url_for('upload_resources') }}">Upload</a>
     <a href="{{ url_for('ingest_resources') }}">Ingest Folder ({{ inbox_count }})</a>
-    <span style="font-size:12px;color:#666;">Pinned total: {{ pinned_count }}</span>
+    <span style="font-size:12px;color:#666;">Pinned total: <span class="js-pinned-count">{{ pinned_count }}</span></span>
   </div>
 
   <div class="grid">
@@ -50,7 +50,7 @@
           <a href="{{ url_for('day_view', year=item.year, month=item.month, day=item.day) }}">Open day</a>
           <a href="{{ url_for('month_view', year=item.year, month=item.month) }}">Open month</a>
 
-          <form method="post" action="{{ url_for('pin_toggle') }}">
+          <form class="js-pin-form" method="post" action="{{ url_for('pin_toggle') }}">
             <input type="hidden" name="abs_path" value="{{ item.abs_path }}">
             <input type="hidden" name="back" value="{{ request.full_path }}">
             <button type="submit">Unpin</button>
@@ -59,5 +59,62 @@
       </div>
     {% endfor %}
   </div>
+  <script>
+    (() => {
+      const pinForms = document.querySelectorAll("form.js-pin-form");
+      if (!pinForms.length) return;
+
+      const countEls = document.querySelectorAll(".js-pinned-count");
+      const totalCountEl = document.querySelector(".js-total-count");
+      const updateCounts = (delta) => {
+        countEls.forEach((el) => {
+          const current = Number(el.textContent.replace(/[^\d]/g, "")) || 0;
+          el.textContent = String(Math.max(0, current + delta));
+        });
+        if (totalCountEl) {
+          const current = Number(totalCountEl.textContent.replace(/[^\d]/g, "")) || 0;
+          totalCountEl.textContent = String(Math.max(0, current + delta));
+        }
+      };
+
+      const submitPin = async (form) => {
+        const absPath = form.querySelector("[name='abs_path']")?.value;
+        if (!absPath) return;
+        const button = form.querySelector("button");
+        button?.setAttribute("disabled", "disabled");
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+            },
+            body: JSON.stringify({ abs_path: absPath }),
+          });
+          const payload = await response.json().catch(() => null);
+          if (!response.ok || !payload?.ok) {
+            console.warn("Pin toggle failed", payload);
+            return;
+          }
+          const pinned = Boolean(payload.pinned);
+          if (!pinned) {
+            const card = form.closest(".card");
+            if (card) card.remove();
+          }
+          updateCounts(pinned ? 1 : -1);
+        } finally {
+          button?.removeAttribute("disabled");
+        }
+      };
+
+      pinForms.forEach((form) => {
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          submitPin(form);
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

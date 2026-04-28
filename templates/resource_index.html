@@ -126,7 +126,7 @@
   <div class="topbar">
     <h2 style="margin:0;">Resource Viewer</h2>
     <span class="badge">{{ total }} files</span>
-    <a href="{{ url_for('pinned') }}">Pinned ({{ pinned_count }})</a>
+    <a href="{{ url_for('pinned') }}">Pinned (<span class="js-pinned-count">{{ pinned_count }}</span>)</a>
     <a href="{{ url_for('stats_view') }}">Stats</a>
     <a href="{{ url_for('lookup_view') }}">Lookup</a>
     <a href="{{ url_for('watch_view') }}">Watch</a>
@@ -360,7 +360,7 @@
           {% if item.year and item.month %}
             <a href="{{ url_for('month_view', year=item.year, month=item.month) }}">Open month</a>
           {% endif %}
-          <form method="post" action="{{ url_for('pin_toggle') }}">
+          <form class="js-pin-form" method="post" action="{{ url_for('pin_toggle') }}">
             <input type="hidden" name="abs_path" value="{{ item.abs_path }}">
             <input type="hidden" name="back" value="{{ request.full_path }}">
             <button class="{% if item.is_pinned %}unp{% else %}pin{% endif %}" type="submit">
@@ -1043,6 +1043,62 @@
           event.preventDefault();
           deleteCurrent();
         }
+      });
+    })();
+  </script>
+  <script>
+    (() => {
+      const pinForms = document.querySelectorAll("form.js-pin-form");
+      if (!pinForms.length) return;
+
+      const countEls = document.querySelectorAll(".js-pinned-count");
+      const updateCounts = (delta) => {
+        countEls.forEach((el) => {
+          const current = Number(el.textContent.replace(/[^\d]/g, "")) || 0;
+          el.textContent = String(Math.max(0, current + delta));
+        });
+      };
+
+      const toggleButton = (button, pinned) => {
+        if (!button) return;
+        button.textContent = pinned ? "Unpin" : "Pin";
+        button.classList.toggle("pin", !pinned);
+        button.classList.toggle("unp", pinned);
+      };
+
+      const submitPin = async (form) => {
+        const absPath = form.querySelector("[name='abs_path']")?.value;
+        if (!absPath) return;
+        const button = form.querySelector("button");
+        button?.setAttribute("disabled", "disabled");
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+            },
+            body: JSON.stringify({ abs_path: absPath }),
+          });
+          const payload = await response.json().catch(() => null);
+          if (!response.ok || !payload?.ok) {
+            console.warn("Pin toggle failed", payload);
+            return;
+          }
+          const pinned = Boolean(payload.pinned);
+          toggleButton(button, pinned);
+          updateCounts(pinned ? 1 : -1);
+        } finally {
+          button?.removeAttribute("disabled");
+        }
+      };
+
+      pinForms.forEach((form) => {
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          submitPin(form);
+        });
       });
     })();
   </script>

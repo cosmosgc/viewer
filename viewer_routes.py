@@ -562,19 +562,28 @@ def register_routes(flask_app):
 
     @flask_app.post("/pin")
     def pin_toggle():
-        abs_path = request.form.get("abs_path", "")
-        back = request.form.get("back", url_for("index"))
+        data = request.get_json(silent=True) or {}
+        abs_path = data.get("abs_path") or request.form.get("abs_path", "")
+        back = data.get("back") or request.form.get("back", url_for("index"))
         if not abs_path:
+            if request.accept_mimetypes.accept_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"ok": False, "message": "Missing abs_path."}), 400
             return redirect(back)
 
         pins = load_pins()
-        if abs_path in pins:
+        is_pinned = abs_path in pins
+        if is_pinned:
             pins.remove(abs_path)
-            flash("Unpinned file.")
+            # flash("Unpinned file.")
+            result = {"ok": True, "message": "Unpinned file.", "pinned": False, "abs_path": abs_path}
         else:
             pins.add(abs_path)
-            flash("Pinned file.")
+            # flash("Pinned file.")
+            result = {"ok": True, "message": "Pinned file.", "pinned": True, "abs_path": abs_path}
         save_pins(pins)
+
+        if request.accept_mimetypes.accept_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify(result), 200
         return redirect(back)
 
     @flask_app.post("/delete")
