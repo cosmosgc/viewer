@@ -1,0 +1,38 @@
+<!doctype html>
+{# Shared remote-post viewer modal. Canonical UX taken from Watch view:
+   buttons: Hide Data / Import / Open File / Open Post / Prev / Next / Close
+   keys: A/D or Left/Right nav, H hide data, I import, O file, P post, Space play/pause, Esc close #}
+{% macro remote_post_modal(prefix='rpv', show_import=True) %}
+<div id="{{ prefix }}Modal" class="rpv-modal-backdrop" aria-hidden="true">
+  <div class="rpv-modal-shell">
+    <div class="rpv-modal-top">
+      <div>
+        <div id="{{ prefix }}Counter"></div>
+        <div class="rpv-modal-status">Keys: A/D or &#8592;/&#8594; next-prev, H hide data{% if show_import %}, I import{% endif %}, O file, P post, Space play/pause, Esc close</div>
+      </div>
+      <div class="rpv-modal-controls">
+        <button id="{{ prefix }}SidebarToggle" type="button" class="rpv-modal-btn">Hide Data</button>
+        {% if show_import %}
+        <button id="{{ prefix }}Import" type="button" class="rpv-modal-btn">Import To Library</button>
+        {% endif %}
+        <button id="{{ prefix }}OpenFile" type="button" class="rpv-modal-btn">Open File</button>
+        <button id="{{ prefix }}OpenPost" type="button" class="rpv-modal-btn">Open Post</button>
+        <button id="{{ prefix }}Prev" type="button" class="rpv-modal-btn">Previous</button>
+        <button id="{{ prefix }}Next" type="button" class="rpv-modal-btn">Next</button>
+        <button id="{{ prefix }}Close" type="button" class="rpv-modal-btn">Close</button>
+      </div>
+    </div>
+    <div class="rpv-modal-body">
+      <div class="rpv-modal-stage">
+        <img id="{{ prefix }}Image" class="rpv-modal-image" alt="">
+        <video id="{{ prefix }}Video" class="rpv-modal-video" controls loop></video>
+        <div id="{{ prefix }}Fallback" class="rpv-modal-fallback"></div>
+        <div id="{{ prefix }}Toast" class="rpv-toast"></div>
+      </div>
+      <aside class="rpv-modal-sidebar">
+        <div id="{{ prefix }}Meta" class="rpv-modal-meta"></div>
+      </aside>
+    </div>
+  </div>
+</div>
+{% endmacro %}

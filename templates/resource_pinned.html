@@ -4,17 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pinned Resources</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='remote_post_viewer.css') }}">
   <style>
     body { font-family: Segoe UI, Arial, sans-serif; margin: 20px; background: #f5f6fa; color: #222; }
     .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
     .badge { background: #ff7a00; color: #fff; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
     .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 10px; }
+    .preview-btn { border: none; padding: 0; background: transparent; width: 100%; cursor: pointer; }
     .preview { width: 100%; height: 180px; object-fit: cover; background: #eee; border-radius: 8px; display: block; }
     .meta { font-size: 12px; color: #555; margin-top: 8px; line-height: 1.35; word-break: break-all; }
     .actions { margin-top: 8px; display: flex; gap: 7px; flex-wrap: wrap; }
     .actions a, .actions button { font-size: 12px; text-decoration: none; }
     button { cursor: pointer; background: #777; color: #fff; border: none; border-radius: 7px; padding: 7px 9px; }
+    .open-btn { background: #13213b; }
   </style>
 </head>
 <body>
@@ -30,15 +33,19 @@
     <span style="font-size:12px;color:#666;">Pinned total: <span class="js-pinned-count">{{ pinned_count }}</span></span>
   </div>
 
-  <div class="grid">
+  <div class="grid" id="pinnedGrid">
     {% for item in items %}
-      <div class="card">
+      <div class="card" data-index="{{ loop.index0 }}" data-abs-path="{{ item.abs_path }}" data-rel-path="{{ item.rel_path }}" data-name="{{ item.name }}" data-kind="{{ item.kind }}" data-date="{{ item.display_dt }}">
         {% if item.kind == "image" %}
-          <img class="preview" src="{{ url_for('media', rel_path=item.rel_path) }}" alt="{{ item.name }}">
+          <button class="preview-btn js-open-modal" type="button" data-index="{{ loop.index0 }}">
+            <img class="preview" src="{{ url_for('media', rel_path=item.rel_path) }}" alt="{{ item.name }}" loading="lazy">
+          </button>
         {% else %}
-          <video class="preview" controls preload="metadata">
-            <source src="{{ url_for('media', rel_path=item.rel_path) }}">
-          </video>
+          <button class="preview-btn js-open-modal" type="button" data-index="{{ loop.index0 }}">
+            <video class="preview" preload="metadata">
+              <source src="{{ url_for('media', rel_path=item.rel_path) }}">
+            </video>
+          </button>
         {% endif %}
         <div class="meta">
           <strong>{{ item.name }}</strong><br>
@@ -46,6 +53,8 @@
           Path: {{ item.rel_path }}
         </div>
         <div class="actions">
+          <button type="button" class="open-btn js-open-modal" data-index="{{ loop.index0 }}">Open</button>
+          <a href="{{ url_for('media', rel_path=item.rel_path) }}" target="_blank" rel="noreferrer">Open File</a>
           <a href="{{ url_for('download', rel_path=item.rel_path) }}">Save file</a>
           <a href="{{ url_for('day_view', year=item.year, month=item.month, day=item.day) }}">Open day</a>
           <a href="{{ url_for('month_view', year=item.year, month=item.month) }}">Open month</a>
@@ -59,11 +68,47 @@
       </div>
     {% endfor %}
   </div>
+
+  {# Same modal shell/controls/keybind shape as Watch/Lookup (shared rpv styles).
+     Local-only actions: no Import / Open Post; Unpin replaces them. #}
+  <div id="pinnedModal" class="rpv-modal-backdrop" aria-hidden="true">
+    <div class="rpv-modal-shell">
+      <div class="rpv-modal-top">
+        <div>
+          <div id="pinnedCounter"></div>
+          <div class="rpv-modal-status">Keys: A/D or &#8592;/&#8594; next-prev, H hide data, O file, U unpin, Esc close</div>
+        </div>
+        <div class="rpv-modal-controls">
+          <button id="pinnedSidebarToggle" type="button" class="rpv-modal-btn">Hide Data</button>
+          <button id="pinnedOpenFile" type="button" class="rpv-modal-btn">Open File</button>
+          <button id="pinnedSave" type="button" class="rpv-modal-btn">Save File</button>
+          <button id="pinnedUnpin" type="button" class="rpv-modal-btn">Unpin</button>
+          <button id="pinnedPrev" type="button" class="rpv-modal-btn">Previous</button>
+          <button id="pinnedNext" type="button" class="rpv-modal-btn">Next</button>
+          <button id="pinnedClose" type="button" class="rpv-modal-btn">Close</button>
+        </div>
+      </div>
+      <div class="rpv-modal-body">
+        <div class="rpv-modal-stage">
+          <img id="pinnedImage" class="rpv-modal-image" alt="">
+          <video id="pinnedVideo" class="rpv-modal-video" controls loop></video>
+          <div id="pinnedFallback" class="rpv-modal-fallback"></div>
+          <div id="pinnedToast" class="rpv-toast"></div>
+        </div>
+        <aside class="rpv-modal-sidebar">
+          <div id="pinnedMeta" class="rpv-modal-meta"></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
   <script>
     (() => {
-      const pinForms = document.querySelectorAll("form.js-pin-form");
-      if (!pinForms.length) return;
+      const escapeHtml = (value) => String(value ?? "")
+        .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;").replaceAll("'", "&#39;");
 
+      // ---- Pin toggles (unchanged behaviour) ----
       const countEls = document.querySelectorAll(".js-pinned-count");
       const totalCountEl = document.querySelector(".js-total-count");
       const updateCounts = (delta) => {
@@ -72,14 +117,17 @@
           el.textContent = String(Math.max(0, current + delta));
         });
         if (totalCountEl) {
-          const current = Number(totalCountEl.textContent.replace(/[^\d]/g, "")) || 0;
-          totalCountEl.textContent = String(Math.max(0, current + delta));
+          const match = totalCountEl.textContent.match(/(\d+)/);
+          if (match) {
+            const current = Number(match[1]) || 0;
+            totalCountEl.textContent = totalCountEl.textContent.replace(/(\d+)/, String(Math.max(0, current + delta)));
+          }
         }
       };
 
       const submitPin = async (form) => {
         const absPath = form.querySelector("[name='abs_path']")?.value;
-        if (!absPath) return;
+        if (!absPath) return false;
         const button = form.querySelector("button");
         button?.setAttribute("disabled", "disabled");
         try {
@@ -95,24 +143,192 @@
           const payload = await response.json().catch(() => null);
           if (!response.ok || !payload?.ok) {
             console.warn("Pin toggle failed", payload);
-            return;
+            return false;
           }
           const pinned = Boolean(payload.pinned);
           if (!pinned) {
             const card = form.closest(".card");
             if (card) card.remove();
+            rebuildItems();
           }
           updateCounts(pinned ? 1 : -1);
+          return pinned;
         } finally {
           button?.removeAttribute("disabled");
         }
       };
 
-      pinForms.forEach((form) => {
+      document.querySelectorAll("form.js-pin-form").forEach((form) => {
         form.addEventListener("submit", (event) => {
           event.preventDefault();
           submitPin(form);
         });
+      });
+
+      // ---- Shared modal viewer (same controls/keybinds shape as Watch/Lookup) ----
+      const modal = document.getElementById("pinnedModal");
+      const shell = modal.querySelector(".rpv-modal-shell");
+      const counter = document.getElementById("pinnedCounter");
+      const image = document.getElementById("pinnedImage");
+      const video = document.getElementById("pinnedVideo");
+      const fallback = document.getElementById("pinnedFallback");
+      const meta = document.getElementById("pinnedMeta");
+      const toast = document.getElementById("pinnedToast");
+      const sidebarToggle = document.getElementById("pinnedSidebarToggle");
+      const openFileBtn = document.getElementById("pinnedOpenFile");
+      const saveBtn = document.getElementById("pinnedSave");
+      const unpinBtn = document.getElementById("pinnedUnpin");
+      const prevBtn = document.getElementById("pinnedPrev");
+      const nextBtn = document.getElementById("pinnedNext");
+      const closeBtn = document.getElementById("pinnedClose");
+
+      let items = [];
+      let current = 0;
+      let open = false;
+      let sidebarVisible = true;
+
+      const mediaUrl = (relPath) => `/media/${String(relPath || "").split("/").map(encodeURIComponent).join("/")}`;
+      const downloadUrl = (relPath) => `/download/${String(relPath || "").split("/").map(encodeURIComponent).join("/")}`;
+
+      const rebuildItems = () => {
+        items = Array.from(document.querySelectorAll("#pinnedGrid .card")).map((card) => ({
+          card,
+          absPath: card.dataset.absPath || "",
+          relPath: card.dataset.relPath || "",
+          name: card.dataset.name || "",
+          kind: card.dataset.kind || "",
+          date: card.dataset.date || "",
+        }));
+        if (current >= items.length) current = Math.max(0, items.length - 1);
+      };
+      rebuildItems();
+
+      const showToast = (message) => {
+        toast.textContent = message;
+        toast.style.display = "block";
+        window.setTimeout(() => { toast.style.display = "none"; }, 1500);
+      };
+      const applySidebarState = () => {
+        shell.classList.toggle("rpv-sidebar-hidden", !sidebarVisible);
+        sidebarToggle.textContent = sidebarVisible ? "Hide Data" : "Show Data";
+      };
+      const renderMeta = (item) => {
+        meta.innerHTML = `<div class="rpv-modal-meta-group"><div class="rpv-modal-meta-label">File</div>`
+          + `<div>${escapeHtml(item.name)}</div><div>Date: ${escapeHtml(item.date)}</div>`
+          + `<div>Path: ${escapeHtml(item.relPath)}</div><div>Type: ${escapeHtml(item.kind || "")}</div></div>`;
+      };
+      const render = () => {
+        if (!items.length) return;
+        const item = items[current];
+        counter.textContent = `${current + 1} / ${items.length}`;
+        renderMeta(item);
+        unpinBtn.textContent = "Unpin";
+        fallback.style.display = "none";
+        fallback.innerHTML = "";
+        if (item.kind === "image") {
+          video.pause();
+          video.removeAttribute("src");
+          video.style.display = "none";
+          image.src = mediaUrl(item.relPath);
+          image.alt = item.name;
+          image.style.display = "block";
+        } else if (item.kind === "video") {
+          image.style.display = "none";
+          image.removeAttribute("src");
+          video.src = mediaUrl(item.relPath);
+          video.style.display = "block";
+          video.load();
+        } else {
+          video.pause();
+          video.removeAttribute("src");
+          video.style.display = "none";
+          image.style.display = "none";
+          image.removeAttribute("src");
+          fallback.innerHTML = `Preview unavailable. <a href="${escapeHtml(mediaUrl(item.relPath))}" target="_blank" rel="noreferrer">Open the original file</a>.`;
+          fallback.style.display = "block";
+        }
+      };
+      const openAt = (index) => {
+        if (!items.length) return;
+        current = ((index % items.length) + items.length) % items.length;
+        open = true;
+        modal.classList.add("open");
+        modal.setAttribute("aria-hidden", "false");
+        applySidebarState();
+        render();
+      };
+      const close = () => {
+        open = false;
+        modal.classList.remove("open");
+        modal.setAttribute("aria-hidden", "true");
+        video.pause();
+        video.removeAttribute("src");
+        toast.style.display = "none";
+      };
+      const prev = () => { if (items.length) { current = (current - 1 + items.length) % items.length; render(); } };
+      const next = () => { if (items.length) { current = (current + 1) % items.length; render(); } };
+      const openFile = () => { const item = items[current]; if (item) window.open(mediaUrl(item.relPath), "_blank", "noopener,noreferrer"); };
+      const saveFile = () => { const item = items[current]; if (item) window.open(downloadUrl(item.relPath), "_blank", "noopener,noreferrer"); };
+      const unpinCurrent = async () => {
+        const item = items[current];
+        if (!item) return;
+        const form = item.card.querySelector("form.js-pin-form");
+        if (!form) return;
+        unpinBtn.disabled = true;
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
+            body: JSON.stringify({ abs_path: item.absPath }),
+          });
+          const payload = await response.json().catch(() => null);
+          if (!response.ok || !payload?.ok) { showToast(payload?.message || "Unpin failed"); return; }
+          item.card.remove();
+          updateCounts(-1);
+          rebuildItems();
+          showToast(payload.message || "Unpinned");
+          if (!items.length) { close(); return; }
+          render();
+        } finally {
+          unpinBtn.disabled = false;
+        }
+      };
+
+      document.getElementById("pinnedGrid").addEventListener("click", (event) => {
+        const trigger = event.target.closest(".js-open-modal");
+        if (!trigger) return;
+        rebuildItems();
+        const cards = Array.from(document.querySelectorAll("#pinnedGrid .card"));
+        const card = trigger.closest(".card");
+        openAt(Math.max(0, cards.indexOf(card)));
+      });
+
+      modal.addEventListener("click", (event) => { if (event.target === modal) close(); });
+      closeBtn.addEventListener("click", close);
+      prevBtn.addEventListener("click", prev);
+      nextBtn.addEventListener("click", next);
+      sidebarToggle.addEventListener("click", () => { sidebarVisible = !sidebarVisible; applySidebarState(); });
+      openFileBtn.addEventListener("click", openFile);
+      saveBtn.addEventListener("click", saveFile);
+      unpinBtn.addEventListener("click", unpinCurrent);
+
+      window.addEventListener("keydown", (event) => {
+        if (!open) return;
+        const t = event.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        const key = event.key.toLowerCase();
+        if (key === "escape") { event.preventDefault(); close(); return; }
+        if (key === "arrowleft" || key === "a") { event.preventDefault(); prev(); return; }
+        if (key === "arrowright" || key === "d") { event.preventDefault(); next(); return; }
+        if (key === "h") { event.preventDefault(); sidebarVisible = !sidebarVisible; applySidebarState(); return; }
+        if (key === "o") { event.preventDefault(); openFile(); return; }
+        if (key === "s") { event.preventDefault(); saveFile(); return; }
+        if (key === "u") { event.preventDefault(); unpinCurrent(); return; }
+        if (key === " " && video.style.display !== "none") {
+          event.preventDefault();
+          if (video.paused) video.play().catch(() => {});
+          else video.pause();
+        }
       });
     })();
   </script>

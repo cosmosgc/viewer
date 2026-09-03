@@ -1,0 +1,71 @@
+/* Shared remote-post viewer (canonical UX from Watch view).
+   Cards + modal + keybinds reused by Watch and Lookup.
+   Pinned reuses the modal shell styling with its local adapter. */
+.rpv-result-grid { --rpv-grid-min: 240px; --rpv-grid-gap: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--rpv-grid-min), 1fr)); gap: var(--rpv-grid-gap); }
+.rpv-result-grid.rpv-columns-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rpv-result-grid.rpv-columns-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rpv-result-grid.rpv-columns-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.rpv-result-grid.rpv-columns-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.rpv-result-grid.rpv-columns-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.rpv-result-grid.rpv-density-compact { --rpv-grid-gap: 10px; }
+.rpv-result-grid.rpv-density-compact .rpv-result-card-body { padding: 10px; gap: 6px; }
+.rpv-result-grid.rpv-density-compact .rpv-result-card-text { font-size: 11px; }
+.rpv-result-grid.rpv-density-cozy { --rpv-grid-gap: 16px; }
+.rpv-result-grid.rpv-density-cozy .rpv-result-card-body { padding: 14px; gap: 10px; }
+.rpv-result-grid.rpv-preview-cover .rpv-preview-wrap img { object-fit: cover; }
+.rpv-result-grid.rpv-ratio-square .rpv-preview-wrap { aspect-ratio: 1 / 1; }
+.rpv-result-grid.rpv-ratio-wide .rpv-preview-wrap { aspect-ratio: 16 / 10; }
+.rpv-result-card { border: 1px solid #d6deec; border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, #fff 0%, #f8fbff 100%); box-shadow: 0 14px 36px rgba(15,23,42,.08); }
+.rpv-result-card.rpv-type-image { border-color: #8fc4ff; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #d9ecff inset; }
+.rpv-result-card.rpv-type-gif { border-color: #d7a5ff; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #f0dfff inset; }
+.rpv-result-card.rpv-type-video { border-color: #ffb37a; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #ffe5d2 inset; }
+.rpv-result-card.rpv-type-flash { border-color: #ffd166; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #fff1c7 inset; }
+.rpv-result-card.rpv-type-file { border-color: #c7d2e4; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #eef3f9 inset; }
+.rpv-result-card.rpv-imported { border-color: #abd9bc; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 2px #e3f5e8 inset; }
+.rpv-preview-wrap { display: block; width: 100%; aspect-ratio: 4 / 3; background: linear-gradient(180deg, #dfe8f6 0%, #ced8ea 100%); border: none; padding: 0; cursor: pointer; }
+.rpv-preview-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.rpv-result-card-body { padding: 12px; display: grid; gap: 8px; }
+.rpv-result-card-title { font-size: 14px; font-weight: 700; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rpv-result-card-text { font-size: 12px; color: #64748b; line-height: 1.4; word-break: break-word; }
+.rpv-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rpv-card-btn { padding: 7px 10px; border-radius: 999px; font-size: 12px; border: 1px solid #30476f; background: #13213b; color: #fff; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+.rpv-card-btn.rpv-secondary { background: #eef4ff; color: #17336b; border: 1px solid #cfe0ff; }
+.rpv-tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.rpv-tag-pill, .rpv-state-pill { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #eef4ff; border: 1px solid #d5e2fb; color: #244377; font-size: 11px; }
+.rpv-type-pill { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #e9f7ee; border: 1px solid #bfe3ca; color: #21653a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.rpv-state-pill.rpv-imported { background: #ebf8ef; border-color: #bfe3ca; color: #21653a; }
+.rpv-state-pill.rpv-pending { background: #fff7e8; border-color: #f1ddb0; color: #8b5a00; }
+.rpv-state-pill.rpv-neutral { background: #f4f7fb; border-color: #d6deec; color: #5d6b82; }
+.rpv-empty-state { border: 1px dashed #d6deec; border-radius: 14px; padding: 28px; text-align: center; color: #64748b; grid-column: 1 / -1; }
+.rpv-hidden { display: none !important; }
+/* Modal (same layout/behaviour everywhere) */
+.rpv-modal-backdrop { position: fixed; inset: 0; background: rgba(6, 10, 18, 0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
+.rpv-modal-backdrop.open { display: flex; }
+.rpv-modal-shell { width: min(97vw, 1520px); height: 96vh; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
+.rpv-modal-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #eef4ff; }
+.rpv-modal-controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.rpv-modal-btn { background: rgba(20, 29, 46, 0.9); color: #fff; border: 1px solid #42577f; border-radius: 8px; padding: 8px 11px; cursor: pointer; }
+.rpv-modal-btn:disabled { opacity: 0.6; cursor: wait; }
+.rpv-modal-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 12px; }
+.rpv-modal-shell.rpv-sidebar-hidden .rpv-modal-body { grid-template-columns: minmax(0, 1fr) 0; }
+.rpv-modal-stage { min-height: 0; height: 100%; display: grid; place-items: center; border-radius: 16px; overflow: hidden; padding: 10px; background: radial-gradient(circle at top, #17253f, #09111d 72%); position: relative; }
+.rpv-modal-image, .rpv-modal-video { width: auto; height: auto; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
+.rpv-modal-fallback { max-width: 520px; padding: 18px; border-radius: 16px; background: rgba(9, 17, 29, 0.72); border: 1px solid #30476f; color: #eef4ff; text-align: center; display: none; }
+.rpv-modal-fallback a { color: #8fc0ff; }
+.rpv-modal-sidebar { min-height: 0; overflow: auto; background: linear-gradient(180deg, #162236 0%, #0f1726 100%); border: 1px solid #22314d; border-radius: 16px; padding: 14px; color: #eef4ff; }
+.rpv-modal-shell.rpv-sidebar-hidden .rpv-modal-sidebar { overflow: hidden; padding: 0; border-width: 0; opacity: 0; }
+.rpv-modal-meta { display: grid; gap: 10px; font-size: 13px; }
+.rpv-modal-meta-group { display: grid; gap: 8px; }
+.rpv-modal-meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #9fb3d6; }
+.rpv-modal-tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.rpv-modal-tag { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,0.07); border: 1px solid rgba(180, 202, 236, 0.2); font-size: 11px; }
+.rpv-modal-meta a { color: #8fc0ff; }
+.rpv-modal-status { font-size: 12px; color: #aebddb; }
+.rpv-toast { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(10, 16, 28, 0.92); color: #fff; border: 1px solid #455a84; border-radius: 8px; padding: 7px 11px; font-size: 12px; display: none; }
+@media (max-width: 980px) { .rpv-modal-body { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .rpv-modal-shell { width: 100vw; height: 100dvh; padding: 10px; }
+  .rpv-modal-top { flex-direction: column; align-items: flex-start; }
+  .rpv-modal-controls { justify-content: flex-start; }
+  .rpv-result-grid.rpv-columns-2, .rpv-result-grid.rpv-columns-3, .rpv-result-grid.rpv-columns-4, .rpv-result-grid.rpv-columns-5, .rpv-result-grid.rpv-columns-6 { grid-template-columns: 1fr; }
+}

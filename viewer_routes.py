@@ -22,31 +22,40 @@ from viewer_store import (
 from viewer_support import media_type_for_ext, metadata_datetime_for_file, normalized_upload_name, parse_dt_from_name, unique_path
 
 
-def register_routes(flask_app):
-    def watch_target_dir_for_post(post):
-        created_at = lookup_service.parse_post_created_at((post or {}).get("created_at"))
-        if created_at is None:
-            return None
-        return RESULT_DIR / "imported" / created_at.strftime("%Y") / created_at.strftime("%m")
+def post_target_dir_for_post(post):
+    created_at = lookup_service.parse_post_created_at((post or {}).get("created_at"))
+    if created_at is None:
+        return None
+    return RESULT_DIR / "imported" / created_at.strftime("%Y") / created_at.strftime("%m")
 
-    def watch_import_state(post):
-        post_id = str((post or {}).get("id") or "").strip()
-        target_dir = watch_target_dir_for_post(post)
-        if not post_id or target_dir is None:
-            return {
-                "imported": False,
-                "target_dir": "",
-                "matching_files": [],
-            }
-        matching_files = []
-        if target_dir.exists():
-            pattern = f"{normalized_upload_name(f'e621_post_{post_id}')}@*"
-            matching_files = sorted(path.name for path in target_dir.glob(pattern) if path.is_file())
+
+def post_import_state(post):
+    post_id = str((post or {}).get("id") or "").strip()
+    target_dir = post_target_dir_for_post(post)
+    if not post_id or target_dir is None:
+        return {
+            "imported": False,
+            "target_dir": "",
+            "matching_files": [],
+        }
+    matching_files = []
+    if target_dir.exists():
+        pattern = f"{normalized_upload_name(f'e621_post_{post_id}')}@*"
+        matching_files = sorted(path.name for path in target_dir.glob(pattern) if path.is_file())
         return {
             "imported": bool(matching_files),
             "target_dir": str(target_dir.relative_to(RESULT_DIR)),
             "matching_files": matching_files,
         }
+
+
+def register_routes(flask_app):
+    # Back-compat wrappers: canonical helpers live at module level above.
+    def watch_target_dir_for_post(post):
+        return post_target_dir_for_post(post)
+
+    def watch_import_state(post):
+        return post_import_state(post)
 
     @flask_app.route("/")
     def index():
@@ -279,6 +288,16 @@ def register_routes(flask_app):
             pool_id=data.get("pool_id", ""),
             search_query=data.get("search_query", ""),
         )
+        # Attach library state so Lookup cards/modal match Watch UX.
+        if status == 200 and payload.get("ok"):
+            endpoint = str(data.get("endpoint") or "posts").strip().lower()
+            if endpoint in {"posts", "favorites"}:
+                listing = (payload.get("data") or {})
+                posts = listing.get("posts") if isinstance(listing, dict) else None
+                if isinstance(posts, list):
+                    for post in posts:
+                        if isinstance(post, dict) and "library_state" not in post:
+                            post["library_state"] = post_import_state(post)
         return jsonify(payload), status
 
     @flask_app.post("/lookup/import")

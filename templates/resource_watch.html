@@ -1,9 +1,11 @@
+{% from "_remote_post_viewer.html" import remote_post_modal %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Watch</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='remote_post_viewer.css') }}">
   <style>
     body { margin: 0; font-family: Segoe UI, Arial, sans-serif; background: #eef3fb; color: #172033; }
     a { color: #1262ff; text-decoration: none; }
@@ -33,89 +35,27 @@
     .watch-card-top { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
     .watch-card-tags { font-size: 14px; font-weight: 700; line-height: 1.35; word-break: break-word; }
     .watch-card-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #64748b; }
-    .watch-card-actions, .card-actions, .tag-row, .modal-footer, .config-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-    .small-btn, .card-btn, .pill-btn { padding: 7px 10px; border-radius: 999px; font-size: 12px; }
+    .watch-card-actions, .modal-footer, .config-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .small-btn, .pill-btn { padding: 7px 10px; border-radius: 999px; font-size: 12px; }
     .watch-card-actions .danger-btn { margin-left: auto; }
     .feed-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 12px 0 10px; }
     .feed-toolbar-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .feed-pagination { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .page-indicator { font-size: 12px; color: #64748b; }
+    .feed-summary { font-size: 12px; color: #64748b; margin-bottom: 10px; }
     .view-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; padding: 14px; margin-bottom: 12px; background: linear-gradient(180deg, #f7faff 0%, #edf4ff 100%); border: 1px solid #d8e6fb; border-radius: 16px; }
     .view-options .field { margin-bottom: 0; }
     .toggle-option { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 10px 12px; background: #fff; border: 1px solid #d6deec; border-radius: 12px; }
     .toggle-option input { margin: 0; }
-    .result-grid { --grid-min: 240px; --grid-gap: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--grid-min), 1fr)); gap: var(--grid-gap); }
-    .result-grid.columns-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .result-grid.columns-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .result-grid.columns-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .result-grid.columns-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-    .result-grid.columns-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-    .result-grid.density-compact { --grid-gap: 10px; }
-    .result-grid.density-compact .result-card-body { padding: 10px; gap: 6px; }
-    .result-grid.density-compact .result-card-text { font-size: 11px; }
-    .result-grid.density-cozy { --grid-gap: 16px; }
-    .result-grid.density-cozy .result-card-body { padding: 14px; gap: 10px; }
-    .result-card { border: 1px solid #d6deec; border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, #fff 0%, #f8fbff 100%); box-shadow: 0 14px 36px rgba(15,23,42,.08); }
-    .result-card.type-image { border-color: #8fc4ff; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #d9ecff inset; }
-    .result-card.type-gif { border-color: #d7a5ff; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #f0dfff inset; }
-    .result-card.type-video { border-color: #ffb37a; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #ffe5d2 inset; }
-    .result-card.type-flash { border-color: #ffd166; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #fff1c7 inset; }
-    .result-card.type-file { border-color: #c7d2e4; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 1px #eef3f9 inset; }
-    .result-card.imported { border-color: #abd9bc; box-shadow: 0 14px 36px rgba(15,23,42,.08), 0 0 0 2px #e3f5e8 inset; }
-    .preview-wrap { display: block; width: 100%; aspect-ratio: 4 / 3; background: linear-gradient(180deg, #dfe8f6 0%, #ced8ea 100%); border: none; padding: 0; }
-    .preview-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
-    .result-grid.preview-cover .preview-wrap img { object-fit: cover; }
-    .result-grid.ratio-square .preview-wrap { aspect-ratio: 1 / 1; }
-    .result-grid.ratio-wide .preview-wrap { aspect-ratio: 16 / 10; }
-    .result-card-body { padding: 12px; display: grid; gap: 8px; }
-    .result-card-title { font-size: 14px; font-weight: 700; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-    .result-card-text { font-size: 12px; color: #64748b; line-height: 1.4; word-break: break-word; }
-    .tag-pill, .state-pill { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #eef4ff; border: 1px solid #d5e2fb; color: #244377; font-size: 11px; }
-    .type-pill { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #e9f7ee; border: 1px solid #bfe3ca; color: #21653a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-    .state-pill.imported { background: #ebf8ef; border-color: #bfe3ca; color: #21653a; }
-    .state-pill.pending { background: #fff7e8; border-color: #f1ddb0; color: #8b5a00; }
-    .state-pill.neutral { background: #f4f7fb; border-color: #d6deec; color: #5d6b82; }
-    .empty-state { border: 1px dashed #d6deec; border-radius: 14px; padding: 28px; text-align: center; color: #64748b; }
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(6, 10, 18, 0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
-    .modal-backdrop.open { display: flex; }
-    .modal-shell { width: min(97vw, 1520px); height: 96vh; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
-    .modal-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #eef4ff; }
-    .modal-controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-    .modal-btn { background: rgba(20, 29, 46, 0.9); color: #fff; border: 1px solid #42577f; border-radius: 8px; padding: 8px 11px; }
-    .modal-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 12px; }
-    .modal-shell.sidebar-hidden .modal-body { grid-template-columns: minmax(0, 1fr) 0; }
-    .modal-stage { min-height: 0; height: 100%; display: grid; place-items: center; border-radius: 16px; overflow: hidden; padding: 10px; background: radial-gradient(circle at top, #17253f, #09111d 72%); position: relative; }
-    .modal-image, .modal-video { width: auto; height: auto; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
-    .modal-fallback { max-width: 520px; padding: 18px; border-radius: 16px; background: rgba(9, 17, 29, 0.72); border: 1px solid #30476f; color: #eef4ff; text-align: center; display: none; }
-    .modal-fallback a { color: #8fc0ff; }
-    .modal-sidebar { min-height: 0; overflow: auto; background: linear-gradient(180deg, #162236 0%, #0f1726 100%); border: 1px solid #22314d; border-radius: 16px; padding: 14px; color: #eef4ff; }
-    .modal-shell.sidebar-hidden .modal-sidebar { overflow: hidden; padding: 0; border-width: 0; opacity: 0; }
-    .modal-meta { display: grid; gap: 10px; font-size: 13px; }
-    .modal-meta-group { display: grid; gap: 8px; }
-    .modal-meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #9fb3d6; }
-    .modal-tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
-    .modal-tag { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,0.07); border: 1px solid rgba(180, 202, 236, 0.2); font-size: 11px; }
-    .modal-status { font-size: 12px; color: #aebddb; }
-    .toast { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(10, 16, 28, 0.92); color: #fff; border: 1px solid #455a84; border-radius: 8px; padding: 7px 11px; font-size: 12px; display: none; }
     .config-backdrop { position: fixed; inset: 0; background: rgba(10, 18, 32, 0.55); display: none; align-items: center; justify-content: center; z-index: 9900; padding: 18px; }
     .config-backdrop.open { display: flex; }
     .config-modal { width: min(94vw, 520px); background: #fff; border: 1px solid #d6deec; border-radius: 20px; box-shadow: 0 24px 60px rgba(15,23,42,.24); padding: 18px; }
     .config-title { margin: 0 0 4px; }
     .config-note { font-size: 12px; color: #64748b; margin-bottom: 14px; }
-    .hidden { display: none !important; }
     @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
-    @media (max-width: 980px) { .modal-body { grid-template-columns: 1fr; } }
     @media (max-width: 640px) {
-      .modal-shell { width: 100vw; height: 100dvh; padding: 10px; }
-      .modal-top { flex-direction: column; align-items: flex-start; }
-      .modal-controls { justify-content: flex-start; }
       .watch-card-actions .danger-btn { margin-left: 0; }
       .config-modal { padding: 16px; }
-      .result-grid.columns-2,
-      .result-grid.columns-3,
-      .result-grid.columns-4,
-      .result-grid.columns-5,
-      .result-grid.columns-6 { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -147,7 +87,7 @@
             <article class="watch-card" data-watch-id="{{ watch.id }}" data-watch-tags="{{ watch.tags }}" data-watch-last-seen="{{ watch.last_seen_at }}">
               <div class="watch-card-top">
                 <div class="watch-card-tags">{{ watch.tags }}</div>
-                <span class="state-pill neutral">Watch</span>
+                <span class="rpv-state-pill rpv-neutral">Watch</span>
               </div>
               <div class="watch-card-meta">
                 <span>Stored: <span class="js-watch-stored">{{ watch.last_seen_at }}</span></span>
@@ -163,7 +103,7 @@
       </section>
       <section class="panel">
         <h3 style="margin:0 0 6px;">Missed Posts</h3>
-        <div id="feedSummary" class="result-card-text" style="margin-bottom:10px;">Choose a watch and load missed posts sorted from oldest to newest.</div>
+        <div id="feedSummary" class="feed-summary">Choose a watch and load missed posts sorted from oldest to newest.</div>
         <div class="feed-toolbar">
           <div class="feed-toolbar-main">
             <div id="pageIndicatorTop" class="page-indicator">Page 1</div>
@@ -224,7 +164,7 @@
           <label class="toggle-option"><input id="viewUnimportedOnly" type="checkbox"> Unimported only</label>
         </div>
         <div id="feedStatus" class="status-line"></div>
-        <div id="feedGrid" class="result-grid"><div class="empty-state">No watch feed loaded yet.</div></div>
+        <div id="feedGrid" class="rpv-result-grid"><div class="rpv-empty-state">No watch feed loaded yet.</div></div>
         <div class="feed-toolbar" style="margin-top:12px;">
           <div id="pageIndicatorBottom" class="page-indicator">Page 1</div>
           <div class="feed-pagination" data-pagination-group="bottom">
@@ -253,36 +193,8 @@
       </div>
     </div>
   </div>
-  <div id="watchModal" class="modal-backdrop" aria-hidden="true">
-    <div class="modal-shell">
-      <div class="modal-top">
-        <div>
-          <div id="modalCounter"></div>
-          <div class="modal-status">Keys: A/D or ←/→ next-prev, H hide data, I import, O file, P post, Space play/pause, Esc close</div>
-        </div>
-        <div class="modal-controls">
-          <button id="modalSidebarToggle" type="button" class="modal-btn">Hide Data</button>
-          <button id="modalImport" type="button" class="modal-btn">Import To Library</button>
-          <button id="modalOpenFile" type="button" class="modal-btn">Open File</button>
-          <button id="modalOpenPost" type="button" class="modal-btn">Open Post</button>
-          <button id="modalPrev" type="button" class="modal-btn">Previous</button>
-          <button id="modalNext" type="button" class="modal-btn">Next</button>
-          <button id="modalClose" type="button" class="modal-btn">Close</button>
-        </div>
-      </div>
-      <div class="modal-body">
-        <div class="modal-stage">
-          <img id="modalImage" class="modal-image" alt="">
-          <video id="modalVideo" class="modal-video" controls loop></video>
-          <div id="modalFallback" class="modal-fallback"></div>
-          <div id="modalToast" class="toast"></div>
-        </div>
-        <aside class="modal-sidebar">
-          <div id="modalMeta" class="modal-meta"></div>
-        </aside>
-      </div>
-    </div>
-  </div>
+  {{ remote_post_modal(prefix='watch') }}
+  <script src="{{ url_for('static', filename='remote_post_viewer.js') }}"></script>
   <script>
     (() => {
       const addUrl = {{ url_for('watch_add_route') | tojson }};
@@ -292,14 +204,8 @@
       const importUrl = {{ url_for('lookup_import_route') | tojson }};
       const SETTINGS_COOKIE = "resource_watch_prefs";
       const DEFAULT_SETTINGS = {
-        pageSize: 60,
-        columns: "auto",
-        previewFit: "contain",
-        previewRatio: "classic",
-        density: "default",
-        showTags: true,
-        importedOnly: false,
-        unimportedOnly: false,
+        pageSize: 60, columns: "auto", previewFit: "contain", previewRatio: "classic",
+        density: "default", showTags: true, importedOnly: false, unimportedOnly: false,
       };
       const watchList = document.getElementById("watchList");
       const newWatchTags = document.getElementById("newWatchTags");
@@ -330,35 +236,16 @@
       const configUseLoadedAtBtn = document.getElementById("configUseLoadedAtBtn");
       const configSaveBtn = document.getElementById("configSaveBtn");
       const configCloseBtn = document.getElementById("configCloseBtn");
-      const modal = document.getElementById("watchModal");
-      const modalShell = modal.querySelector(".modal-shell");
-      const modalCounter = document.getElementById("modalCounter");
-      const modalImage = document.getElementById("modalImage");
-      const modalVideo = document.getElementById("modalVideo");
-      const modalFallback = document.getElementById("modalFallback");
-      const modalMeta = document.getElementById("modalMeta");
-      const modalSidebarToggleBtn = document.getElementById("modalSidebarToggle");
-      const modalImportBtn = document.getElementById("modalImport");
-      const modalOpenFileBtn = document.getElementById("modalOpenFile");
-      const modalOpenPostBtn = document.getElementById("modalOpenPost");
-      const modalPrevBtn = document.getElementById("modalPrev");
-      const modalNextBtn = document.getElementById("modalNext");
-      const modalCloseBtn = document.getElementById("modalClose");
-      const modalToast = document.getElementById("modalToast");
       let newestLoadedAt = "";
       let feedLoadedAt = "";
       let activeWatchId = "";
-      let modalPosts = [];
-      let modalIndex = 0;
-      let modalOpen = false;
-      let modalSidebarVisible = true;
-      let editingWatchCard = null;
       let activeFeedPage = 1;
       let activeFeedHasPrev = false;
       let activeFeedHasNext = false;
       let viewSettings = { ...DEFAULT_SETTINGS };
+      let editingWatchCard = null;
 
-      const escapeHtml = (value) => String(value).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll("\"","&quot;").replaceAll("'","&#39;");
+      const escapeHtml = window.RemotePostViewerUtils.escapeHtml;
       const setStatus = (node, message, tone = "") => { node.textContent = message || ""; node.className = "status-line" + (tone ? " " + tone : ""); };
       const isoToLocalInput = (value) => {
         if (!value) return "";
@@ -368,19 +255,15 @@
         return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
       };
       const localInputToIso = (value) => { if (!value) return ""; const d = new Date(value); return Number.isNaN(d.getTime()) ? "" : d.toISOString(); };
-      const formatDate = (value) => value ? String(value).replace("T", " ").replace("Z", " UTC") : "";
-      const formatDir = (value) => value ? String(value).replaceAll("\\", "/") : "";
-      const getPostFileExt = (post) => String(post && post.file && post.file.ext || "").toLowerCase();
-      const classifyResourceType = (ext) => {
-        if (!ext) return { kind: "file", label: "File" };
-        if (ext === "gif") return { kind: "gif", label: "GIF" };
-        if (["swf"].includes(ext)) return { kind: "flash", label: "Flash" };
-        if (["webm", "mp4", "mov", "mkv"].includes(ext)) return { kind: "video", label: "Video" };
-        if (["jpg", "jpeg", "png", "webp", "bmp", "avif", "jxl"].includes(ext)) return { kind: "image", label: "Image" };
-        return { kind: "file", label: ext.toUpperCase() };
-      };
-      const resourceTypeMarkup = (post) => `<span class="type-pill">${escapeHtml(classifyResourceType(getPostFileExt(post)).label)}</span>`;
-      const resultCardTypeClass = (post) => `type-${classifyResourceType(getPostFileExt(post)).kind}`;
+
+      const viewer = window.createRemotePostViewer({
+        prefix: "watch",
+        importUrl,
+        onStatus: (message, tone) => setStatus(feedStatus, message, tone),
+        onPostsChanged: () => renderFeed(),
+      });
+      viewer.bindGrid(feedGrid);
+
       const applyActiveWatch = () => document.querySelectorAll(".watch-card").forEach((c) => c.classList.toggle("active", c.dataset.watchId === activeWatchId));
       const readCookie = (name) => {
         const prefix = `${name}=`;
@@ -389,18 +272,14 @@
       const writeCookie = (name, value) => {
         document.cookie = `${name}=${value}; path=/; max-age=2147483647; expires=Fri, 31 Dec 2099 23:59:59 GMT; SameSite=Lax`;
       };
-      const saveViewSettings = () => {
-        writeCookie(SETTINGS_COOKIE, encodeURIComponent(JSON.stringify(viewSettings)));
-      };
+      const saveViewSettings = () => writeCookie(SETTINGS_COOKIE, encodeURIComponent(JSON.stringify(viewSettings)));
       const loadViewSettings = () => {
         const raw = readCookie(SETTINGS_COOKIE);
         if (!raw) return { ...DEFAULT_SETTINGS };
         try {
           const parsed = JSON.parse(decodeURIComponent(raw));
           return { ...DEFAULT_SETTINGS, ...(parsed && typeof parsed === "object" ? parsed : {}) };
-        } catch (_) {
-          return { ...DEFAULT_SETTINGS };
-        }
+        } catch (_) { return { ...DEFAULT_SETTINGS }; }
       };
       const syncViewControls = () => {
         viewPageSize.value = String(viewSettings.pageSize);
@@ -413,13 +292,13 @@
         viewUnimportedOnly.checked = Boolean(viewSettings.unimportedOnly);
       };
       const applyViewSettings = () => {
-        feedGrid.classList.remove("columns-2", "columns-3", "columns-4", "columns-5", "columns-6", "preview-cover", "ratio-square", "ratio-wide", "density-compact", "density-cozy");
-        if (viewSettings.columns !== "auto") feedGrid.classList.add(`columns-${viewSettings.columns}`);
-        if (viewSettings.previewFit === "cover") feedGrid.classList.add("preview-cover");
-        if (viewSettings.previewRatio === "square") feedGrid.classList.add("ratio-square");
-        if (viewSettings.previewRatio === "wide") feedGrid.classList.add("ratio-wide");
-        if (viewSettings.density === "compact") feedGrid.classList.add("density-compact");
-        if (viewSettings.density === "cozy") feedGrid.classList.add("density-cozy");
+        feedGrid.classList.remove("rpv-columns-2", "rpv-columns-3", "rpv-columns-4", "rpv-columns-5", "rpv-columns-6", "rpv-preview-cover", "rpv-ratio-square", "rpv-ratio-wide", "rpv-density-compact", "rpv-density-cozy");
+        if (viewSettings.columns !== "auto") feedGrid.classList.add(`rpv-columns-${viewSettings.columns}`);
+        if (viewSettings.previewFit === "cover") feedGrid.classList.add("rpv-preview-cover");
+        if (viewSettings.previewRatio === "square") feedGrid.classList.add("rpv-ratio-square");
+        if (viewSettings.previewRatio === "wide") feedGrid.classList.add("rpv-ratio-wide");
+        if (viewSettings.density === "compact") feedGrid.classList.add("rpv-density-compact");
+        if (viewSettings.density === "cozy") feedGrid.classList.add("rpv-density-cozy");
       };
       const updateViewSetting = (patch, { rerender = true, persist = true } = {}) => {
         viewSettings = { ...viewSettings, ...patch };
@@ -440,9 +319,7 @@
       viewSettings = loadViewSettings();
       syncViewControls();
       applyViewSettings();
-      const defaultNowLocal = () => isoToLocalInput(new Date().toISOString());
-      newWatchTimestamp.value = defaultNowLocal();
-      const currentModalPost = () => modalPosts[modalIndex] || null;
+      newWatchTimestamp.value = isoToLocalInput(new Date().toISOString());
 
       const updateWatchCardView = (card, watch) => {
         card.dataset.watchTags = watch.tags || "";
@@ -450,210 +327,52 @@
         card.querySelector(".watch-card-tags").textContent = watch.tags || "";
         card.querySelector(".js-watch-stored").textContent = watch.last_seen_at || "";
       };
-
       const createWatchCard = (watch) => {
         const card = document.createElement("article");
         card.className = "watch-card";
         card.dataset.watchId = watch.id;
         card.dataset.watchTags = watch.tags || "";
         card.dataset.watchLastSeen = watch.last_seen_at || "";
-        card.innerHTML = `<div class="watch-card-top"><div class="watch-card-tags">${escapeHtml(watch.tags || "")}</div><span class="state-pill neutral">Watch</span></div><div class="watch-card-meta"><span>Stored: <span class="js-watch-stored">${escapeHtml(watch.last_seen_at || "")}</span></span></div><div class="watch-card-actions"><button type="button" class="small-btn js-load-watch">Load Missed</button><button type="button" class="small-btn ghost-btn js-config-watch">Configure</button><button type="button" class="small-btn danger-btn js-delete-watch">Delete</button></div>`;
+        card.innerHTML = `<div class="watch-card-top"><div class="watch-card-tags">${escapeHtml(watch.tags || "")}</div><span class="rpv-state-pill rpv-neutral">Watch</span></div><div class="watch-card-meta"><span>Stored: <span class="js-watch-stored">${escapeHtml(watch.last_seen_at || "")}</span></span></div><div class="watch-card-actions"><button type="button" class="small-btn js-load-watch">Load Missed</button><button type="button" class="small-btn ghost-btn js-config-watch">Configure</button><button type="button" class="small-btn danger-btn js-delete-watch">Delete</button></div>`;
         return card;
       };
 
-      const importedStateMarkup = (post) => {
-        const state = post.library_state || {};
-        if (state.imported) return '<span class="state-pill imported">Imported</span>';
-        if (state.target_dir) return '<span class="state-pill pending">Not Imported</span>';
-        return '<span class="state-pill neutral">Dir Unknown</span>';
-      };
+      const getVisiblePosts = () => viewer.posts.filter((post) => {
+        const imported = Boolean(post && post.library_state && post.library_state.imported);
+        if (viewSettings.importedOnly && !imported) return false;
+        if (viewSettings.unimportedOnly && imported) return false;
+        return true;
+      });
 
-      const importedDetailsMarkup = (post) => {
-        const state = post.library_state || {};
-        if (state.imported && Array.isArray(state.matching_files) && state.matching_files.length) {
-          return `<div class="result-card-text">Library files: ${escapeHtml(state.matching_files.slice(0, 2).join(", "))}</div>`;
-        }
-        if (state.target_dir) {
-          return `<div class="result-card-text">Target dir: ${escapeHtml(formatDir(state.target_dir))}</div>`;
-        }
-        return "";
-      };
-
-      const renderPostCard = (post) => {
-        const previewUrl = post.preview && post.preview.url ? post.preview.url : (post.sample && post.sample.url ? post.sample.url : "");
-        const fileUrl = post.file && post.file.url ? post.file.url : "";
-        const postUrl = post.id ? `https://e621.net/posts/${post.id}` : "";
-        const tags = (((post.tags || {}).general) || []).slice(0, 8);
-        const importLabel = post.library_state && post.library_state.imported ? "Import Again" : "Import";
-        return `<article class="result-card ${resultCardTypeClass(post)}${post.library_state && post.library_state.imported ? " imported" : ""}" data-post-card-id="${escapeHtml(post.id)}">${previewUrl ? `<button type="button" class="preview-wrap" data-action="open-modal" data-post-id="${escapeHtml(post.id)}"><img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(post.id)}"></button>` : '<div class="preview-wrap"></div>'}<div class="result-card-body"><div class="result-card-title">Post #${escapeHtml(post.id)} ${resourceTypeMarkup(post)} ${importedStateMarkup(post)}</div><div class="result-card-text">Created: ${escapeHtml(formatDate(post.created_at))}</div><div class="result-card-text">Rating: ${escapeHtml(post.rating || "")} · Score: ${escapeHtml((post.score || {}).total)} · Favs: ${escapeHtml(post.fav_count)}</div>${importedDetailsMarkup(post)}<div class="card-actions"><button type="button" class="card-btn" data-action="open-modal" data-post-id="${escapeHtml(post.id)}">Open</button><a class="card-btn secondary-btn" href="${escapeHtml(postUrl)}" target="_blank" rel="noreferrer">Open Post</a><a class="card-btn secondary-btn" href="${escapeHtml(fileUrl || previewUrl)}" target="_blank" rel="noreferrer">Open File</a><button type="button" class="card-btn secondary-btn" data-action="import-post" data-post-id="${escapeHtml(post.id)}" data-import-label="${escapeHtml(importLabel)}">${escapeHtml(importLabel)}</button></div>${tags.length ? `<div class="tag-row${viewSettings.showTags ? "" : " hidden"}">${tags.map((tag) => `<span class="tag-pill">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</div></article>`;
-      };
-
-      const getVisiblePosts = () => {
-        if (!Array.isArray(modalPosts) || !modalPosts.length) return [];
-        return modalPosts.filter((post) => {
-          const imported = Boolean(post && post.library_state && post.library_state.imported);
-          if (viewSettings.importedOnly && !imported) return false;
-          if (viewSettings.unimportedOnly && imported) return false;
-          return true;
-        });
-      };
-
-      const updateFeedSummary = () => {
+      const updateFeedSummary = (visiblePosts) => {
         const card = activeWatchId ? document.querySelector(`.watch-card[data-watch-id="${CSS.escape(activeWatchId)}"]`) : null;
         const tags = card ? (card.dataset.watchTags || "") : "";
-        const visiblePosts = getVisiblePosts();
         if (!activeWatchId) {
           feedSummary.textContent = "Choose a watch and load missed posts sorted from oldest to newest.";
           return;
         }
-        if (!modalPosts.length) {
+        if (!viewer.posts.length) {
           feedSummary.textContent = activeFeedPage === 1 ? `No missed posts for ${tags}.` : `No missed posts on page ${activeFeedPage} for ${tags}.`;
           return;
         }
         const filterBits = [];
         if (viewSettings.importedOnly) filterBits.push("imported only");
         if (viewSettings.unimportedOnly) filterBits.push("unimported only");
-        feedSummary.textContent = `${visiblePosts.length} visible of ${modalPosts.length} post${modalPosts.length === 1 ? "" : "s"} on page ${activeFeedPage} for ${tags}, ordered oldest to newest${filterBits.length ? `, filtered to ${filterBits.join(" and ")}` : ""}.`;
+        feedSummary.textContent = `${visiblePosts.length} visible of ${viewer.posts.length} post${viewer.posts.length === 1 ? "" : "s"} on page ${activeFeedPage} for ${tags}, ordered oldest to newest${filterBits.length ? `, filtered to ${filterBits.join(" and ")}` : ""}.`;
       };
-
-      const showToast = (message) => {
-        modalToast.textContent = message;
-        modalToast.style.display = "block";
-        window.setTimeout(() => { modalToast.style.display = "none"; }, 1800);
-      };
-      const applyModalSidebarState = () => {
-        modalShell.classList.toggle("sidebar-hidden", !modalSidebarVisible);
-        modalSidebarToggleBtn.textContent = modalSidebarVisible ? "Hide Data" : "Show Data";
-      };
-      const renderModalMeta = (post) => {
-        const tags = post.tags || {};
-        const groups = ["artist", "copyright", "character", "species", "general", "meta", "lore"];
-        const tagGroups = groups.filter((group) => Array.isArray(tags[group]) && tags[group].length).map((group) => `<div class="modal-meta-group"><div class="modal-meta-label">${escapeHtml(group)}</div><div class="modal-tag-list">${tags[group].slice(0, group === "general" ? 24 : 10).map((tag) => `<span class="modal-tag">${escapeHtml(tag)}</span>`).join("")}</div></div>`).join("");
-        const state = post.library_state || {};
-        modalMeta.innerHTML = `<div class="modal-meta-group"><div class="modal-meta-label">Post</div><div>Post #${escapeHtml(post.id)} · <a href="https://e621.net/posts/${escapeHtml(post.id)}" target="_blank" rel="noreferrer">open</a></div><div>Created: ${escapeHtml(formatDate(post.created_at))}</div><div>Uploader: ${escapeHtml(post.uploader_name || post.uploader_id || "")}</div><div>Rating: ${escapeHtml(post.rating || "")} · Score: ${escapeHtml((post.score || {}).total)} · Favs: ${escapeHtml(post.fav_count)}</div><div>Type: ${escapeHtml(classifyResourceType(getPostFileExt(post)).label)}</div><div>Library: ${state.imported ? "Imported" : "Not imported yet"}</div>${state.target_dir ? `<div>Target dir: ${escapeHtml(formatDir(state.target_dir))}</div>` : ""}${state.imported && Array.isArray(state.matching_files) && state.matching_files.length ? `<div>Files: ${escapeHtml(state.matching_files.join(", "))}</div>` : ""}</div>${post.description ? `<div class="modal-meta-group"><div class="modal-meta-label">Description</div><div>${escapeHtml(post.description)}</div></div>` : ""}${tagGroups}`;
-      };
-      const renderModal = () => {
-        const post = currentModalPost();
-        if (!post) return;
-        modalCounter.textContent = `${modalIndex + 1} / ${modalPosts.length}`;
-        renderModalMeta(post);
-        modalImportBtn.textContent = post.library_state && post.library_state.imported ? "Import Again" : "Import To Library";
-        const fileUrl = post.file && post.file.url ? post.file.url : "";
-        const resourceType = classifyResourceType(getPostFileExt(post));
-        modalFallback.style.display = "none";
-        modalFallback.innerHTML = "";
-        if (resourceType.kind === "video" && fileUrl) {
-          modalImage.style.display = "none";
-          modalImage.removeAttribute("src");
-          modalFallback.style.display = "none";
-          modalVideo.src = fileUrl;
-          modalVideo.style.display = "block";
-          modalVideo.load();
-        } else if (["image", "gif"].includes(resourceType.kind)) {
-          modalVideo.pause();
-          modalVideo.removeAttribute("src");
-          modalVideo.style.display = "none";
-          modalImage.src = fileUrl || (post.sample && post.sample.url) || (post.preview && post.preview.url) || "";
-          modalImage.style.display = "block";
-        } else {
-          modalVideo.pause();
-          modalVideo.removeAttribute("src");
-          modalVideo.style.display = "none";
-          modalImage.style.display = "none";
-          modalImage.removeAttribute("src");
-          modalFallback.innerHTML = fileUrl
-            ? `Preview unavailable for ${escapeHtml(resourceType.label)} files. <a href="${escapeHtml(fileUrl)}" target="_blank" rel="noreferrer">Open the original file</a>.`
-            : `Preview unavailable for ${escapeHtml(resourceType.label)} files.`;
-          modalFallback.style.display = "block";
-        }
-      };
-      const openModalAt = (postId) => {
-        const index = modalPosts.findIndex((post) => String(post.id) === String(postId));
-        if (index < 0) return;
-        modalIndex = index;
-        modalOpen = true;
-        modal.classList.add("open");
-        modal.setAttribute("aria-hidden", "false");
-        applyModalSidebarState();
-        renderModal();
-      };
-      const closeModal = () => {
-        modalOpen = false;
-        modal.classList.remove("open");
-        modal.setAttribute("aria-hidden", "true");
-        modalVideo.pause();
-        modalVideo.removeAttribute("src");
-        modalToast.style.display = "none";
-      };
-      const modalPrev = () => { if (modalPosts.length) { modalIndex = (modalIndex - 1 + modalPosts.length) % modalPosts.length; renderModal(); } };
-      const modalNext = () => { if (modalPosts.length) { modalIndex = (modalIndex + 1) % modalPosts.length; renderModal(); } };
-      const openCurrentFile = () => { const post = currentModalPost(); const url = post && post.file && post.file.url; if (url) window.open(url, "_blank", "noopener,noreferrer"); };
-      const openCurrentPost = () => { const post = currentModalPost(); if (post && post.id) window.open(`https://e621.net/posts/${post.id}`, "_blank", "noopener,noreferrer"); };
 
       const renderFeed = () => {
         const visiblePosts = getVisiblePosts();
-        updateFeedSummary();
-        if (!modalPosts.length) {
-          feedGrid.innerHTML = '<div class="empty-state">No missed posts found for this watch.</div>';
+        updateFeedSummary(visiblePosts);
+        if (!viewer.posts.length) {
+          feedGrid.innerHTML = '<div class="rpv-empty-state">No missed posts found for this watch.</div>';
           return;
         }
         if (!visiblePosts.length) {
-          feedGrid.innerHTML = '<div class="empty-state">No posts match the current view filters.</div>';
+          feedGrid.innerHTML = '<div class="rpv-empty-state">No posts match the current view filters.</div>';
           return;
         }
-        feedGrid.innerHTML = visiblePosts.map(renderPostCard).join("");
-      };
-
-      const setImportTriggerState = (button, importing, idleLabel = "Import") => {
-        if (!button) return;
-        if (!button.dataset.importLabel) button.dataset.importLabel = idleLabel;
-        button.disabled = importing;
-        button.textContent = importing ? "Importing..." : (button.dataset.importLabel || idleLabel);
-      };
-
-      const markPostImported = (post, payload) => {
-        if (!post) return;
-        const relPath = String(payload && payload.rel_path || "");
-        const fileName = relPath ? relPath.split(/[\\/]/).pop() : "";
-        const targetDir = relPath ? relPath.split(/[\\/]/).slice(0, -1).join("/") : ((post.library_state || {}).target_dir || "");
-        const nextFiles = Array.isArray(post.library_state && post.library_state.matching_files) ? [...post.library_state.matching_files] : [];
-        if (fileName && !nextFiles.includes(fileName)) nextFiles.unshift(fileName);
-        post.library_state = {
-          ...(post.library_state || {}),
-          imported: true,
-          target_dir: targetDir,
-          matching_files: nextFiles,
-        };
-      };
-
-      const importPost = async (post, button = null) => {
-        if (!post) return;
-        const idleLabel = post.library_state && post.library_state.imported ? "Import Again" : "Import";
-        setImportTriggerState(button, true, idleLabel);
-        modalImportBtn.disabled = true;
-        modalImportBtn.textContent = "Importing...";
-        setStatus(feedStatus, `Importing post #${post.id}...`, "warn");
-        try {
-          const response = await fetch(importUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ post }) });
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok || !payload.ok) {
-            setStatus(feedStatus, payload.message || "Import failed", "error");
-            showToast(payload.message || "Import failed");
-            return;
-          }
-          markPostImported(post, payload);
-          renderFeed();
-          if (modalOpen) renderModal();
-          setStatus(feedStatus, payload.message || "Imported", "ok");
-          showToast(payload.message || "Imported");
-        } catch (_) {
-          setStatus(feedStatus, "Import failed", "error");
-          showToast("Import failed");
-        } finally {
-          setImportTriggerState(button, false, post.library_state && post.library_state.imported ? "Import Again" : idleLabel);
-          modalImportBtn.disabled = false;
-          if (modalOpen) renderModal();
-        }
+        feedGrid.innerHTML = visiblePosts.map((post) => window.RemotePostViewerUtils.renderPostCard(post, { showTags: viewSettings.showTags })).join("");
       };
 
       const addWatch = async () => {
@@ -669,7 +388,7 @@
           watchList.prepend(createWatchCard(payload.watch));
           setStatus(watchStatus, payload.message || "Watch added", "ok");
           newWatchTags.value = "";
-          newWatchTimestamp.value = defaultNowLocal();
+          newWatchTimestamp.value = isoToLocalInput(new Date().toISOString());
         } catch (_) { setStatus(watchStatus, "Add failed", "error"); }
         finally { addWatchBtn.disabled = false; }
       };
@@ -697,12 +416,12 @@
           if (!response.ok || !payload.ok) { setStatus(watchStatus, payload.message || "Delete failed", "error"); return; }
           if (activeWatchId === id) {
             activeWatchId = "";
-            modalPosts = [];
+            viewer.setPosts([]);
             newestLoadedAt = "";
             feedLoadedAt = "";
             updateFeedPagination();
             feedSummary.textContent = "Choose a watch and load missed posts sorted from oldest to newest.";
-            feedGrid.innerHTML = '<div class="empty-state">No watch feed loaded yet.</div>';
+            feedGrid.innerHTML = '<div class="rpv-empty-state">No watch feed loaded yet.</div>';
           }
           card.remove();
           applyActiveWatch();
@@ -718,29 +437,18 @@
         newestLoadedAt = "";
         feedLoadedAt = "";
         updateFeedPagination({ page, hasPrev: page > 1, hasNext: false });
-        feedPrevBtns.forEach((button) => { button.disabled = true; });
-        feedNextBtns.forEach((button) => { button.disabled = true; });
-        feedFirstBtns.forEach((button) => { button.disabled = true; });
         setStatus(feedStatus, `Loading missed posts for ${tags} page ${page}...`, "warn");
         try {
           const response = await fetch(feedUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags, last_seen_at: lastSeen, page: String(page), limit: String(viewSettings.pageSize) }) });
           const payload = await response.json().catch(() => ({}));
-          if (!response.ok || !payload.ok) { setStatus(feedStatus, payload.message || "Feed load failed", "error"); feedGrid.innerHTML = '<div class="empty-state">Feed load failed.</div>'; return; }
+          if (!response.ok || !payload.ok) { setStatus(feedStatus, payload.message || "Feed load failed", "error"); feedGrid.innerHTML = '<div class="rpv-empty-state">Feed load failed.</div>'; return; }
           const posts = (payload.data && Array.isArray(payload.data.posts)) ? payload.data.posts : [];
           const watchMeta = payload.watch || {};
           const resolvedPage = Number(watchMeta.page) || page;
-          modalPosts = posts;
+          viewer.setPosts(posts);
           feedLoadedAt = new Date().toISOString();
-          updateFeedPagination({
-            page: resolvedPage,
-            hasPrev: Boolean(watchMeta.has_prev_page),
-            hasNext: Boolean(watchMeta.has_next_page),
-          });
-          if (!posts.length) {
-            renderFeed();
-            setStatus(feedStatus, "No missed posts", "ok");
-            return;
-          }
+          updateFeedPagination({ page: resolvedPage, hasPrev: Boolean(watchMeta.has_prev_page), hasNext: Boolean(watchMeta.has_next_page) });
+          if (!posts.length) { renderFeed(); setStatus(feedStatus, "No missed posts", "ok"); return; }
           newestLoadedAt = posts[posts.length - 1].created_at || "";
           renderFeed();
           setStatus(feedStatus, "Feed loaded", "ok");
@@ -758,18 +466,13 @@
         watchConfigModal.classList.add("open");
         watchConfigModal.setAttribute("aria-hidden", "false");
       };
-
       const closeWatchConfig = () => {
         editingWatchCard = null;
         watchConfigModal.classList.remove("open");
         watchConfigModal.setAttribute("aria-hidden", "true");
       };
-
       const stampConfigTimestamp = (isoValue, missingMessage) => {
-        if (!isoValue) {
-          setStatus(configWatchHint, missingMessage, "warn");
-          return;
-        }
+        if (!isoValue) { setStatus(configWatchHint, missingMessage, "warn"); return; }
         configWatchTimestamp.value = isoToLocalInput(isoValue);
         setStatus(configWatchHint, "Timestamp updated in editor", "ok");
       };
@@ -847,52 +550,11 @@
       });
       configCloseBtn.addEventListener("click", closeWatchConfig);
       watchConfigModal.addEventListener("click", (event) => { if (event.target === watchConfigModal) closeWatchConfig(); });
-      feedGrid.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-action]");
-        if (!button) return;
-        const post = modalPosts.find((item) => String(item.id) === String(button.dataset.postId));
-        if (button.dataset.action === "open-modal") {
-          openModalAt(button.dataset.postId);
-          return;
-        }
-        importPost(post, button);
-      });
-      modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
-      modalCloseBtn.addEventListener("click", closeModal);
-      modalPrevBtn.addEventListener("click", modalPrev);
-      modalNextBtn.addEventListener("click", modalNext);
-      modalSidebarToggleBtn.addEventListener("click", () => { modalSidebarVisible = !modalSidebarVisible; applyModalSidebarState(); });
-      modalOpenFileBtn.addEventListener("click", openCurrentFile);
-      modalOpenPostBtn.addEventListener("click", openCurrentPost);
-      modalImportBtn.addEventListener("click", () => {
-        const post = currentModalPost();
-        const button = post ? feedGrid.querySelector(`[data-action="import-post"][data-post-id="${CSS.escape(String(post.id))}"]`) : null;
-        importPost(post, button);
-      });
       window.addEventListener("keydown", (event) => {
         const t = event.target;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-        if (watchConfigModal.classList.contains("open") && event.key === "Escape") { event.preventDefault(); closeWatchConfig(); return; }
-        if (!modalOpen) return;
-        const key = event.key.toLowerCase();
-        if (key === "escape") { event.preventDefault(); closeModal(); return; }
-        if (key === "arrowleft" || key === "a") { event.preventDefault(); modalPrev(); return; }
-        if (key === "arrowright" || key === "d") { event.preventDefault(); modalNext(); return; }
-        if (key === "h") { event.preventDefault(); modalSidebarVisible = !modalSidebarVisible; applyModalSidebarState(); return; }
-        if (key === "i") {
-          event.preventDefault();
-          const post = currentModalPost();
-          const button = post ? feedGrid.querySelector(`[data-action="import-post"][data-post-id="${CSS.escape(String(post.id))}"]`) : null;
-          importPost(post, button);
-          return;
-        }
-        if (key === "o") { event.preventDefault(); openCurrentFile(); return; }
-        if (key === "p") { event.preventDefault(); openCurrentPost(); return; }
-        if (key === " " && modalVideo.style.display !== "none") {
-          event.preventDefault();
-          if (modalVideo.paused) modalVideo.play().catch(() => {});
-          else modalVideo.pause();
-        }
+        // Viewer owns modal keybinds; only handle the config modal here.
+        if (watchConfigModal.classList.contains("open") && event.key === "Escape") { event.preventDefault(); closeWatchConfig(); }
       });
     })();
   </script>
