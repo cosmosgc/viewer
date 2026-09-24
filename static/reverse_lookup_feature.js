@@ -31,6 +31,11 @@
     let currentItem = null;
     let currentPayload = null;
     let showRaw = storage.getItem(rawKey);
+    // Coalescing: rapid prev/next navigation used to fire one fetch per
+    // image with no cancellation, so 5+ requests piled up in parallel and
+    // stale responses overwrote the currently visible panel.
+    let requestSeq = 0;
+    let inFlightController = null;
     showRaw = showRaw === null ? !!config.show_raw_data_by_default : showRaw === "1";
 
     function chipStyle(styleKey) {
@@ -170,14 +175,34 @@
         return item.reverseSearch;
       }
 
+      // Cancel any previous in-flight lookup: only the newest visible item
+      // should consume a server slot. Without this, fast navigation queues
+      // N parallel /reverse-search POSTs and the UI appears frozen.
+      requestSeq += 1;
+      const mySeq = requestSeq;
+      if (inFlightController) {
+        try { inFlightController.abort(); } catch (_) {}
+      }
+      inFlightController = ("AbortController" in window) ? new AbortController() : null;
+      const signal = inFlightController ? inFlightController.signal : undefined;
+
       setState(item, force ? "Refreshing..." : "Loading...", null, true);
       try {
         const res = await fetch(requestUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rel_path: item.path, force: !!force })
+          body: JSON.stringify({ rel_path: item.path, force: !!force }),
+          signal: signal
         });
         const payload = await res.json().catch(() => ({}));
+        if (mySeq !== requestSeq || currentItem !== item) {
+          // Stale response for an image the user already navigated away
+          // from: cache it but don't repaint the panel.
+          if (res.ok && payload && payload.ok) {
+            item.reverseSearch = payload;
+          }
+          return payload;
+        }
         if (!res.ok || !payload.ok) {
           setState(item, payload.message || "Lookup failed", payload, false);
           return payload;
@@ -187,10 +212,19 @@
           setState(item, payload.cached ? "Loaded from SQLite cache" : "Updated from e621", payload, false);
         }
         return payload;
-      } catch (_) {
+      } catch (err) {
+        if ((err && err.name === "AbortError") || (mySeq !== requestSeq)) {
+          return null;
+        }
         const payload = { error: "Request failed" };
-        setState(item, "Lookup failed", payload, false);
+        if (currentItem === item) {
+          setState(item, "Lookup failed", payload, false);
+        }
         return payload;
+      } finally {
+        if (mySeq === requestSeq) {
+          inFlightController = null;
+        }
       }
     }
 
@@ -210,6 +244,11 @@
       load,
       setState,
       clear() {
+        requestSeq += 1;
+        if (inFlightController) {
+          try { inFlightController.abort(); } catch (_) {}
+          inFlightController = null;
+        }
         currentItem = null;
         currentPayload = null;
         panel.style.display = "none";

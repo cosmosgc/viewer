@@ -134,29 +134,17 @@ def scan_resources(base_dir):
             cached_lookup = None
             has_lookup_data = False
             if kind == "image":
-                candidate = lookup_service.cached_resource_data(p)
+                # Cache-only: never do live network I/O while scanning the
+                # gallery. The old code re-fetched stale ShortLimitReached
+                # entries inline here, so opening a page with 5+ stale
+                # images blocked the response for 5+ sequential e621 calls.
+                # Stale entries are refreshed on demand (modal open) or via
+                # the explicit batch-fetch button instead.
+                try:
+                    candidate = lookup_service.cached_resource_data(p)
+                except Exception:
+                    candidate = None
                 if isinstance(candidate, dict):
-                    result_data = candidate.get("result")
-                    fetched_at_raw = candidate.get("fetched_at")
-                    fetched_at = None
-                    if fetched_at_raw:
-                        try:
-                            fetched_at = dt.datetime.fromisoformat(str(fetched_at_raw))
-                        except ValueError:
-                            fetched_at = None
-
-                    is_short_limit = isinstance(result_data, dict) and result_data.get("error") == "ShortLimitReached"
-                    is_stale = fetched_at is not None and fetched_at <= (dt.datetime.now() - dt.timedelta(days=1))
-                    if is_short_limit and is_stale:
-                        refreshed_payload, refreshed_status = lookup_service.get_or_update_lookup_data(
-                            safe_rel_path(p),
-                            force=True,
-                        )
-                        if refreshed_status == 200 and refreshed_payload.get("ok"):
-                            refreshed_resource = refreshed_payload.get("data")
-                            if isinstance(refreshed_resource, dict):
-                                candidate = refreshed_resource
-
                     cached_lookup = candidate
                     result_data = candidate.get("result")
                     has_lookup_data = not (isinstance(result_data, dict) and result_data.get("error"))

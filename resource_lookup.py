@@ -247,7 +247,7 @@ class ReverseSearchService:
             conn.commit()
 
     def db_connect(self):
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30)
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -516,23 +516,31 @@ class ReverseSearchService:
         return boundary, bytes(body)
 
     def acquire_request_slot(self):
+        # Reserve a start-time slot for rate limiting WITHOUT holding the
+        # lock during sleep or network I/O. The old version did
+        # ``lock.acquire()`` then ``time.sleep()`` then kept the lock held
+        # across the whole ``urlopen`` call, so 5 queued searches blocked
+        # every other request thread for the full network duration.
         if self.min_interval_seconds <= 0:
             return
-        self._request_spacing_lock.acquire()
-        now = time.monotonic()
-        if self._last_request_completed_at is not None:
-            elapsed = now - self._last_request_completed_at
-            remaining = self.min_interval_seconds - elapsed
-            if remaining > 0:
-                time.sleep(remaining)
+        while True:
+            with self._request_spacing_lock:
+                now = time.monotonic()
+                if self._last_request_completed_at is None:
+                    self._last_request_completed_at = now
+                    return
+                elapsed = now - self._last_request_completed_at
+                remaining = self.min_interval_seconds - elapsed
+                if remaining <= 0:
+                    self._last_request_completed_at = now
+                    return
+            time.sleep(min(remaining, 5.0) if remaining > 0 else 0)
 
     def release_request_slot(self):
-        if self.min_interval_seconds <= 0:
-            return
-        try:
-            self._last_request_completed_at = time.monotonic()
-        finally:
-            self._request_spacing_lock.release()
+        # No-op kept for backward compatibility: the slot timestamp is now
+        # reserved up-front in acquire_request_slot(), so nothing is held
+        # across the network call.
+        return
 
     def reverse_search_image(self, image_path):
         if not self.login or not self.api_key:

@@ -38,7 +38,7 @@ def run_status_window(app, host, port, debug):
     lan_url = f"http://{local_ip}:{port}"
     bind_label = "0.0.0.0 (all interfaces)" if host == "0.0.0.0" else host
 
-    server = make_server(host, port, app)
+    server = make_server(host, port, app, threaded=True)
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
 
