@@ -18,6 +18,7 @@ from viewer_store import (
     safe_rel_path,
     save_watches,
     save_pins,
+    selected_base_dir,
 )
 from viewer_support import media_type_for_ext, metadata_datetime_for_file, normalized_upload_name, parse_dt_from_name, unique_path
 
@@ -75,14 +76,37 @@ def register_routes(flask_app):
         except ValueError:
             page = 1
 
-        years, months_by_year, days_by_ym = collect_calendar()
-        base_dir, filtered = filtered_scope_items(year, month, day, q, media)
-        sort_order = apply_sort(filtered, sort_order)
-        page_items, total, page, pages = paginate(filtered, page, page_size)
+        import viewer_index
 
+        years, months_by_year, days_by_ym = viewer_index.collect_calendar()
+        if not years:
+            # Index still building on first startup: fall back for navigation only
+            # (top-level walk, cheap). File listing still comes from the index.
+            try:
+                years, months_by_year, days_by_ym = collect_calendar()
+            except Exception:
+                pass
+        base_dir = selected_base_dir(year, month, day)
         pins = load_pins()
-        for item in page_items:
-            item["is_pinned"] = item["abs_path"] in pins
+        index_status = viewer_index.get_status()
+        if base_dir is None:
+            page_items, total, page, pages = [], 0, 1, 1
+        else:
+            try:
+                page_items, total, page, pages, sort_order = viewer_index.query_media(
+                    year=year, month=month, day=day, q=q, media=media,
+                    sort_order=sort_order, page=page, page_size=page_size,
+                    pinned_abs=pins,
+                )
+            except Exception:
+                # Fallback to filesystem scan if the index is unavailable.
+                years, months_by_year, days_by_ym = collect_calendar()
+                base_dir, filtered = filtered_scope_items(year, month, day, q, media)
+                sort_order = apply_sort(filtered, sort_order)
+                page_items, total, page, pages = paginate(filtered, page, page_size)
+                for item in page_items:
+                    item["is_pinned"] = item["abs_path"] in pins
+                index_status = {"fallback": True, **viewer_index.get_status()}
 
         return render_template(
             "resource_index.html",
@@ -105,6 +129,7 @@ def register_routes(flask_app):
             page_size=page_size,
             inbox_count=len(list_inbox_candidates()),
             reverse_ui_config=lookup_service.ui_config,
+            index_status=index_status,
         )
 
     @flask_app.route("/stats")
@@ -115,19 +140,35 @@ def register_routes(flask_app):
         month = request.args.get("month", "")
         limit = request.args.get("limit", "all")
 
-        years, months_by_year, _ = collect_calendar()
+        import viewer_index
+
+        years, months_by_year, _ = viewer_index.collect_calendar()
+        if not years:
+            try:
+                years, months_by_year, _ = collect_calendar()
+            except Exception:
+                pass
         if year and year not in years:
             year = ""
         if month and (not year or month not in months_by_year.get(year, [])):
             month = ""
 
-        chart_data = build_chart_series(
-            granularity=granularity,
-            media=media,
-            year_filter=year,
-            month_filter=month,
-            limit=limit,
-        )
+        try:
+            chart_data = viewer_index.build_chart_series(
+                granularity=granularity,
+                media=media,
+                year_filter=year,
+                month_filter=month,
+                limit=limit,
+            )
+        except Exception:
+            chart_data = build_chart_series(
+                granularity=granularity,
+                media=media,
+                year_filter=year,
+                month_filter=month,
+                limit=limit,
+            )
 
         return render_template(
             "resource_stats.html",
@@ -142,7 +183,24 @@ def register_routes(flask_app):
             pinned_count=len(load_pins()),
             inbox_count=len(list_inbox_candidates()),
             result_dir=str(RESULT_DIR),
+            index_status=__import__("viewer_index").get_status(),
         )
+
+    @flask_app.get("/index/status")
+    def index_status_route():
+        import viewer_index
+
+        return jsonify({"ok": True, **viewer_index.get_status()})
+
+    @flask_app.post("/index/rescan")
+    def index_rescan_route():
+        import viewer_index
+
+        status = viewer_index.get_status()
+        if status.get("running"):
+            return jsonify({"ok": False, "message": "Rescan already running"}), 409
+        viewer_index.sync_in_background()
+        return jsonify({"ok": True, "message": "Rescan started in background"})
 
     @flask_app.route("/lookup")
     def lookup_view():
@@ -417,6 +475,10 @@ def register_routes(flask_app):
         }
         resource_payload["summary"] = lookup_service.summarize_resource(resource_payload)
         lookup_service.upsert_cached_resource(resource_payload)
+        try:
+            __import__("viewer_index").upsert_path(target_path)
+        except Exception:
+            pass
 
         return jsonify({
             "ok": True,
@@ -487,6 +549,10 @@ def register_routes(flask_app):
             try:
                 f.save(dst)
                 saved += 1
+                try:
+                    __import__("viewer_index").upsert_path(dst)
+                except Exception:
+                    pass
             except Exception:
                 skipped += 1
 
@@ -525,6 +591,10 @@ def register_routes(flask_app):
                 dst = unique_path(target_dir, new_name)
                 shutil.move(str(src), str(dst))
                 moved += 1
+                try:
+                    __import__("viewer_index").upsert_path(dst)
+                except Exception:
+                    pass
             except Exception:
                 failed += 1
 
@@ -629,6 +699,11 @@ def register_routes(flask_app):
         except Exception as exc:
             return jsonify({"ok": False, "message": f"Delete failed: {exc}"}), 500
 
+        try:
+            __import__("viewer_index").remove_rel_path(str(safe_path).replace("\\", "/"))
+        except Exception:
+            pass
+
         pins = load_pins()
         abs_key = str(abs_path)
         if abs_key in pins:
@@ -643,6 +718,11 @@ def register_routes(flask_app):
         rel_path = data.get("rel_path") or request.form.get("rel_path", "")
         force = str(data.get("force") or request.form.get("force") or "").lower() in {"1", "true", "yes", "on"}
         payload, status = lookup_service.get_or_update_lookup_data(rel_path, force=force)
+        if status == 200 and payload.get("ok"):
+            try:
+                __import__("viewer_index").refresh_lookup_fields([rel_path])
+            except Exception:
+                pass
         return jsonify(payload), status
 
     @flask_app.post("/reverse-search/batch")

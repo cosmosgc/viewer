@@ -5,7 +5,7 @@ a = Analysis(
     ['resource_viewer.py'],
     pathex=[],
     binaries=[],
-    datas=[('templates', 'templates'), ('pinned_files.json', '.'), ('resource_inbox', 'resource_inbox')],
+    datas=[('templates', 'templates'), ('pinned_files.json', '.'), ('resource_inbox', 'resource_inbox'), ('blocked_ips.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -1,0 +1,89 @@
+{
+  "enabled": true,
+  "blocked_ips": [
+    {
+      "ip": "179.43.150.26",
+      "reason": "Private Layer INC (AS51852) - flagged in security logs for scanning and probing web applications",
+      "asn": "AS51852",
+      "host": "Private Layer INC",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "5.226.140.108",
+      "reason": "MCP scanning: GET /api/mcp 404 (2026-09-24)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "193.32.209.248",
+      "reason": "MCP scanning: GET /mcp/ 404 (2026-09-24)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "217.146.80.122",
+      "reason": "MCP scanning: GET /mcp 404 (2026-09-24)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "195.206.182.215",
+      "reason": "MCP/SSE probing: GET /sse 404 (2026-09-24)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "185.180.141.67",
+      "reason": "Targeted vulnerability probing: Zyxel fingerprint GET /ext-js/app/common/zld_product_spec.js 404 (2026-09-24)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "185.180.141.68",
+      "reason": "Targeted vulnerability probing: GET /cgi-bin/authLogin.cgi 404 (2026-09-24)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "185.180.141.69",
+      "reason": "Targeted vulnerability probing: recon GET / as part of 185.180.141.x campaign (2026-09-24)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "185.180.141.70",
+      "reason": "Targeted vulnerability probing: GET /api/session/properties 404 (2026-09-24)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "94.183.174.99",
+      "reason": "Targeted vulnerability probing: GET /currentsetting.htm 404 (Netgear config exposure probe) (2026-09-24)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "185.12.59.118",
+      "reason": "JWT/token hunting: GET /v404/exec?jwt=29075 404 (2026-09-24)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "195.184.76.226",
+      "reason": "Scanner: raw TLS handshake sent to plain-HTTP port (Bad request version) (2026-09-23)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "195.184.76.231",
+      "reason": "Recon, same campaign as 195.184.76.226: GET / 200 (2026-09-23)",
+      "added": "2026-09-24"
+    },
+    {
+      "ip": "195.184.76.105",
+      "reason": "Recon, same campaign as 195.184.76.226: GET /favicon.ico 404 (2026-09-23)",
+      "added": "2026-09-24"
+    }
+  ],
+  "blocked_cidrs": [
+    {
+      "cidr": "185.180.141.0/24",
+      "reason": "Distributed vulnerability-probing campaign across .67/.68/.69/.70 within ~1 minute (2026-09-24)"
+    }
+  ],
+  "auto_block": {
+    "enabled": true,
+    "not_found_threshold": 10,
+    "not_found_window_s": 60
+  },
+  "auto_block_patterns": []
+}

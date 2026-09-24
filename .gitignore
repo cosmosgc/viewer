@@ -7,3 +7,4 @@ build
 reverse_search_config.json
 watch/watches.json
 reverse_lookup.sqlite3
+auto_blocked_ips.json

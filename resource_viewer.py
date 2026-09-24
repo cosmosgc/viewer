@@ -18,6 +18,7 @@ from viewer_context import (
     pystray,
 )
 from viewer_routes import register_routes
+from viewer_security import register_ip_blocking
 from viewer_status import detect_local_ip, detect_public_ip, run_status_window
 from viewer_store import (
     apply_filters,
@@ -49,7 +50,37 @@ from viewer_support import (
     unique_path,
 )
 
+register_ip_blocking(app)
 register_routes(app)
+
+
+def _start_index_background_sync():
+    """Build/refresh the media index off the request path.
+
+    First run walks the whole library (~85k files) in a daemon thread so
+    page loads stay instant. Re-runs periodically to pick up external
+    changes (files added outside upload/ingest/import).
+    """
+    import threading
+
+    try:
+        import viewer_index
+    except Exception:
+        return
+    viewer_index.ensure_schema()
+    interval_s = max(60, int(os.getenv("RESOURCE_INDEX_INTERVAL_S", "900")))
+
+    def _loop():
+        viewer_index.sync_full()
+        t = threading.Timer(interval_s, _loop)
+        t.daemon = True
+        t.start()
+
+    t0 = threading.Thread(target=_loop, daemon=True)
+    t0.start()
+
+
+_start_index_background_sync()
 
 
 if __name__ == "__main__":

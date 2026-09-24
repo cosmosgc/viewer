@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "blocked_ips": [],
+  "blocked_cidrs": []
+}

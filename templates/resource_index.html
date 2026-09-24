@@ -143,6 +143,27 @@
     {% endif %}
   {% endwith %}
 
+  {% if index_status is defined and index_status %}
+  <div class="flash" id="index-status" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <span>Index: {{ index_status.file_count }} files{% if index_status.last_sync %} · updated {{ index_status.last_sync }}{% endif %}{% if index_status.running %} · <strong>scanning…</strong>{% endif %}{% if index_status.fallback %} · <strong>fallback scan active</strong>{% endif %}</span>
+    <button type="button" id="index-rescan-btn" style="background:#274064;">Rescan library</button>
+  </div>
+  <script>
+  (function() {
+    var btn = document.getElementById("index-rescan-btn");
+    if (!btn) return;
+    btn.addEventListener("click", function() {
+      btn.disabled = true;
+      btn.textContent = "Scanning…";
+      fetch("{{ url_for('index_rescan_route') }}", {method: "POST"})
+        .then(function(r) { return r.json(); })
+        .then(function(j) { btn.textContent = (j && j.message) || "Started"; })
+        .catch(function() { btn.textContent = "Failed"; btn.disabled = false; });
+    });
+  })();
+  </script>
+  {% endif %}
+
   <form class="filters" method="get" action="{{ url_for('index') }}">
     <input type="text" name="q" value="{{ q }}" placeholder="Search name/path">
     <select name="year">
